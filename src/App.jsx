@@ -26,6 +26,11 @@ const VerifyPage = lazy(() => import('./pages/VerifyPage'))
 const AboutPage = lazy(() => import('./pages/AboutPage'))
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
+const ProvidersPage = lazy(() => import('./pages/ProvidersPage'))
+const ProviderPage = lazy(() => import('./pages/ProviderPage'))
+const AllGamesPage = lazy(() => import('./pages/AllGamesPage'))
+const GameLaunchPage = lazy(() => import('./pages/GameLaunchPage'))
+const AdminPage = lazy(() => import('./pages/AdminPage'))
 
 function App() {
     return (
@@ -35,6 +40,11 @@ function App() {
                     <Route path="/" element={<Layout />}>
                         <Route index element={<HomePage />} />
                         <Route path="cassino" element={<CasinoPage />} />
+                        <Route path="cassino/jogos" element={<AllGamesPage />} />
+                        <Route path="cassino/provedores" element={<ProvidersPage />} />
+                        <Route path="cassino/provedores/:slug" element={<ProviderPage />} />
+                        <Route path="cassino/jogo/:id" element={<GameLaunchPage />} />
+                        <Route path="admin" element={<AdminPage />} />
                         <Route path="crash" element={<CrashPage />} />
                         <Route path="plinko" element={<PlinkoPage />} />
                         <Route path="dino" element={<DinoPage />} />

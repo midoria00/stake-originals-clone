@@ -133,3 +133,12 @@ test('mobile bet sheet owns collapse, escape, focus, and scroll-lock behavior', 
     assert.match(css, /bottom:\s*var\(--mobile-nav-space\)/)
     assert.match(css, /prefers-reduced-motion/)
 })
+
+test('provider grid: 2 columns on phones, 3 on tablets, 6 when the content area is wide', async () => {
+    const css = await source('./src/casino/casino.css')
+    assert.match(css, /\.provider-grid-wrap\s*\{[^}]*container-type:\s*inline-size/s)
+    assert.match(css, /\.provider-grid\s*\{[^}]*repeat\(2,/s)
+    assert.match(css, /@container\s*\(min-width:\s*480px\)[\s\S]*repeat\(3,/)
+    assert.match(css, /@container\s*\(min-width:\s*860px\)[\s\S]*repeat\(6,/)
+    assert.match(css, /prefers-reduced-motion/)
+})

@@ -1,5 +1,8 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight, Coins as CoinsIcon, Lock, ShieldCheck, Trophy } from 'lucide-react'
+import { PROVIDERS } from '../../server/casino/providers.js'
+import { useProviderStatuses } from '../casino/api'
+import { ProviderGrid, TotalsLine } from '../casino/components'
 import { GameGrid } from '../components/GameCard'
 import { FootballIcon } from '../components/icons'
 import { useWallet } from '../context/WalletContext'
@@ -15,7 +18,21 @@ import '../sports/sports.css'
 import '../styles/home.css'
 
 const MAX_MATCHES = 6
+const TOP_PROVIDERS = 12
 const byKickoff = (a, b) => Date.parse(a.kickoff) - Date.parse(b.kickoff)
+
+// Registry order puts PG Soft, Pragmatic Play and Hacksaw first; statuses come from the server
+// and never claim an integration that does not exist.
+function TopProviders() {
+    const statuses = useProviderStatuses()
+    const rows = statuses.data ? new Map(statuses.data.providers.map((row) => [row.id, row])) : null
+    return (
+        <Section id="home-providers" title={t('casino.topProviders')} hint={t('casino.topProvidersHint')} link={{ to: '/cassino/provedores', label: t('casino.seeAllProviders') }}>
+            <ProviderGrid providers={PROVIDERS.slice(0, TOP_PROVIDERS)} rows={rows} />
+            <TotalsLine state={statuses} />
+        </Section>
+    )
+}
 
 function Section({ id, title, hint, link, children }) {
     return (
@@ -102,6 +119,8 @@ export default function HomePage() {
                 <Section id="home-originals" title={t('home.originals')} hint={t('home.originalsHint')} link={{ to: '/cassino', label: t('common.seeAll') }}>
                     <GameGrid games={GAMES} />
                 </Section>
+
+                <TopProviders />
 
                 <Section id="home-live" title={t('home.liveFootball')} hint={demoHint} link={{ to: '/sports?tab=live', label: t('common.seeAll') }}>
                     <MatchList query={sports.live} matches={sports.liveMatches} empty={t('home.liveEmpty')} />

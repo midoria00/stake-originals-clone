@@ -4,6 +4,8 @@ export default {
     sports: 'Esportes',
     football: 'Futebol',
     allGames: 'Todos os jogos',
+    providers: 'Provedores',
+    lobby: 'Lobby do cassino',
     originals: '123bet Originals',
     favorites: 'Favoritos',
     recent: 'Recentes',
