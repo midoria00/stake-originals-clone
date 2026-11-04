@@ -10,7 +10,9 @@ test('Vercel serves browser routes through the SPA entry point', () => {
     assert.ok(existsSync(configUrl), 'vercel.json is missing')
 
     const config = JSON.parse(readFileSync(configUrl, 'utf8'))
+    // The account API rewrite must come before the SPA fallback, which stays last.
     assert.deepEqual(config.rewrites, [
+        { source: '/api/app/:path*', destination: '/api/app?route=:path*' },
         { source: '/(.*)', destination: '/index.html' },
     ])
 })

@@ -43,8 +43,13 @@ export function handleAdmin(request, { service, catalog, env = process.env }) {
     if (throttled(request)) return json({ error: 'Muitas tentativas. Aguarde um minuto.' }, 429)
     const auth = authorize(request, env)
     if (!auth.ok) return json({ error: auth.status === 404 ? 'Não encontrado.' : 'Não autorizado.' }, auth.status)
+    return json(catalogStatus(service, catalog), 200)
+}
+
+// Also served to signed-in staff by the account admin API.
+export function catalogStatus(service, catalog) {
     const summary = service.providers()
-    return json({
+    return {
         writable: false,
         providers: summary.providers,
         totals: summary.totals,
@@ -55,5 +60,5 @@ export function handleAdmin(request, { service, catalog, env = process.env }) {
             rejectedOnLoad: catalog.rejected.length,
             duplicatesOnLoad: catalog.duplicates.length,
         },
-    }, 200)
+    }
 }
