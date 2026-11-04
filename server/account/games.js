@@ -11,8 +11,9 @@ import { crashPointFromFloat } from '../../src/utils/ProvablyFair.js'
 import { ApiError } from './http.js'
 import { applyMultiplier, fail, idempotencyKey, int, oneOf, stakeCents, toBp, uuid } from './validate.js'
 
+// randomInt accepts ranges below 2^48 only: 47 random bits give a float in [0, 1).
 export const cryptoRng = {
-    float: () => randomInt(0, 2 ** 48) / 2 ** 48,
+    float: () => randomInt(0, 2 ** 47) / 2 ** 47,
     int: (min, max) => randomInt(min, max),
 }
 
@@ -253,6 +254,8 @@ export async function dinoJump(ctx, body) {
     const { round } = await loadOpen(ctx, body.roundId, 'dino')
     if (round.status !== 'open') return { round: publicRound(round), outcome: 'settled' }
     const cleared = round.state.cleared ?? 0
+    // A retried request (lost response) carries the step it saw: it gets the current state, not a new roll.
+    if (body.step !== undefined && body.step !== round.step) return { round: publicRound(round), outcome: 'cleared', cleared, multiplier: dinoMultiplier(round.params.difficulty, cleared), stale: true }
     if (cleared >= DINO_MAX_JUMPS) fail('max_jumps', 409)
     const roll = ctx.rng.float()
     if (roll >= DINO_SURVIVAL[round.params.difficulty]) {

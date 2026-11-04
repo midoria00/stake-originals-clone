@@ -8,6 +8,8 @@ import { clearedCookies, resolveSession, sessionCookies } from './session.js'
 import { createSupabase, SupabaseError } from './supabase.js'
 import { createSandboxProvider, recordEvent } from './payments.js'
 import * as games from './games.js'
+import { placeSportsBet, settleOpenBets } from './sports.js'
+import { createSportsService } from '../sports/service.js'
 import * as v from './validate.js'
 
 const STATUS_BY_CODE = {
@@ -366,6 +368,8 @@ const accountRoutes = {
             const q = ctx.url.searchParams
             const status = q.get('status') ? v.oneOf(q.get('status'), ['open', 'won', 'lost', 'void', 'partial'], 'invalid_status') : null
             const [at, id] = keysetCursor(q.get('cursor'))
+            // Lazy settlement; a sports provider failure must not break the listing.
+            await settleOpenBets(ctx, ctx.userId).catch((error) => ctx.logError('history/sports', 'settle_failed', error?.message))
             const result = await ctx.rpc('list_sports_bets', { p_user: ctx.userId, p_status: status, p_cursor_at: at, p_cursor_id: id, p_limit: v.int(q.get('limit') ?? 25, 1, 100, 'invalid_limit') })
             const last = result.items.at(-1)
             return { items: result.items, nextCursor: result.hasMore ? `${last.createdAt}|${last.id}` : null }
@@ -472,6 +476,7 @@ const paymentRoutes = {
 }
 
 const gameRoutes = {
+    'POST sports/bets': { auth: 'user', game: true, run: (ctx, body) => placeSportsBet(ctx, body) },
     'POST games/dice': { auth: 'user', game: true, run: (ctx, body) => games.playDice(ctx, body) },
     'POST games/limbo': { auth: 'user', game: true, run: (ctx, body) => games.playLimbo(ctx, body) },
     'POST games/plinko': { auth: 'user', game: true, run: (ctx, body) => games.playPlinko(ctx, body) },
@@ -581,7 +586,11 @@ const adminRoutes = {
     },
     'GET cron/maintenance': {
         auth: 'cron',
-        run: async (ctx) => ({ maintenance: await ctx.rpc('purge_expired') }),
+        run: async (ctx) => {
+            const maintenance = await ctx.rpc('purge_expired')
+            const sports = await settleOpenBets(ctx, null).catch((error) => { ctx.logError('cron/maintenance', 'sports_settle_failed', error?.message) })
+            return { maintenance, sports: sports ?? null }
+        },
     },
 }
 
@@ -595,11 +604,11 @@ function routeKey(request, url) {
     return `${request.method} ${path}`
 }
 
-export function createAccountApp({ env = process.env, fetch, rng = games.cryptoRng, now = Date.now, sleep } = {}) {
+export function createAccountApp({ env = process.env, fetch, rng = games.cryptoRng, now = Date.now, sleep, sports = createSportsService({ env, now }) } = {}) {
     const config = readConfig(env)
     const sb = config.enabled ? createSupabase({ url: config.url, anonKey: config.anonKey, serviceKey: config.serviceKey, fetch }) : null
     const wait = sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
-    return { config, handle: (request) => dispatch(request, { config, sb, rng, now, sleep: wait }) }
+    return { config, handle: (request) => dispatch(request, { config, sb, rng, now, sleep: wait, sports }) }
 }
 
 async function dispatch(request, deps) {

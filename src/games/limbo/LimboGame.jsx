@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import MobileBetSheet from '../../components/MobileBetSheet'
 import { Coins } from '../../brand/Brand'
+import { gameApi } from '../../account/api'
 import { t } from '../../i18n'
 import { formatCoins, formatPercent } from '../../i18n/format'
 import { FairnessPanel, HistoryStrip, StakeField, prefersReducedMotion, useOriginalsRound } from '../dice/DiceGame'
@@ -48,6 +49,8 @@ function LimboGame() {
         run({
             validate: () => (target.ok ? '' : targetErr(target.code)),
             resolve: (r, stakeValue) => resolveLimbo({ r, stake: stakeValue, target: target.value }),
+            server: (stakeValue) => gameApi.limbo({ stake: stakeValue, target: target.value }),
+            fromServer: (r, payoutCoins) => ({ result: r.result.result, win: r.result.win, payout: payoutCoins }),
             reveal: async (outcome) => {
                 setState('counting')
                 await countUp(outcome.result)

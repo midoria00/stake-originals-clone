@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import {
     InputNumber,
     Button,
-    Typography,
+    Typography,
     Switch,
     Tooltip,
     Slider
@@ -16,7 +16,7 @@ import { t } from '../../i18n'
 
 const { Text } = Typography
 
-function BettingPanel({ phase, betPlaced, multiplier, onBet, onCashout }) {
+function BettingPanel({ phase, betPlaced, multiplier, onBet, onCashout, serverMode = false }) {
     const [betAmount, setBetAmount] = useState(1)
     const [cashoutAt, setCashoutAt] = useState(2.00)
     const [autoCashout, setAutoCashout] = useState(true)
@@ -24,19 +24,19 @@ function BettingPanel({ phase, betPlaced, multiplier, onBet, onCashout }) {
     // Calculate profit
     const profit = betAmount * (cashoutAt - 1)
 
-    // Auto Cashout Logic
+    // Auto Cashout Logic (visitors only: a server round carries its own autoCashout)
     useEffect(() => {
-        if (phase === 'running' && betPlaced && autoCashout) {
+        if (!serverMode && phase === 'running' && betPlaced && autoCashout) {
             if (multiplier >= cashoutAt) {
                 onCashout()
             }
         }
-    }, [multiplier, phase, betPlaced, autoCashout, cashoutAt, onCashout])
+    }, [multiplier, phase, betPlaced, autoCashout, cashoutAt, onCashout, serverMode])
 
     const handleBetClick = () => {
         if (phase === 'waiting') {
             if (betAmount > 0) {
-                onBet(betAmount)
+                onBet(betAmount, autoCashout ? cashoutAt : null)
             }
         } else if (phase === 'running' && betPlaced) {
             onCashout()

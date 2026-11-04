@@ -48,6 +48,7 @@ import PlayerBets from './PlayerBets'
 import PlayerResults from './PlayerResults'
 import ProvablyFair from '../../utils/ProvablyFair'
 import { useWallet } from '../../context/WalletContext'
+import { gameApi, centsToCoins, errorMessage } from '../../account/api'
 import { Logo, Coins } from '../../brand/Brand'
 import { t } from '../../i18n'
 import { formatCoins, formatMultiplier, formatNumber } from '../../i18n/format'
@@ -65,7 +66,8 @@ const PHASE = {
 const MOBILE_QUERY = '(max-width: 768px), (max-width: 932px) and (orientation: landscape) and (hover: none)'
 
 function CrashGame() {
-    const { balance, placeBet, addWinnings, showToast } = useWallet()
+    const { balance, placeBet, addWinnings, showToast, mode, syncWallet } = useWallet()
+    const serverMode = mode === 'server'
     const [phase, setPhase] = useState(PHASE.WAITING)
     const [multiplier, setMultiplier] = useState(1.00)
     const [countdown, setCountdown] = useState(5)
@@ -147,6 +149,16 @@ function CrashGame() {
         })
     }, [])
 
+    // Server mode: the stake is taken by gameApi.crash.start when the run begins, and the crash point
+    // stays secret on the server, so the animation runs until watch() or cashout() ends the round.
+    const [roundId, setRoundId] = useState(null)
+    const roundIdRef = useRef(null)
+    const pendingBetRef = useRef(null) // { amount, autoCashout } placed during the countdown
+    const startingRef = useRef(false) // the countdown is over: no more bets for this round
+    const cashingRef = useRef(false)
+    const settledRef = useRef(null)
+    const applyServerResultRef = useRef(null)
+    const handleCrashRef = useRef(null)
     const startTimeRef = useRef(null)
     const animationRef = useRef(null)
     const gameDisplayRef = useRef(null)
@@ -351,6 +363,11 @@ function CrashGame() {
         setCountdown(5)
         setPlayerCashouts([])
         setUserBetData(null)
+        pendingBetRef.current = null
+        startingRef.current = false
+        cashingRef.current = false
+        roundIdRef.current = null
+        setRoundId(null)
     }, [])
 
     // Handle crash
@@ -385,6 +402,133 @@ function CrashGame() {
         setBetPlaced(false)
         setTimeout(startCountdown, 3000)
     }, [startCountdown, userBetData, betPlaced, showToast])
+    handleCrashRef.current = handleCrash
+
+    // Applies the final state of a server round once, whichever of watch/cashout reports it first.
+    const applyServerResult = useCallback((res) => {
+        const round = res?.round
+        if (!round || settledRef.current === round.id) return
+        settledRef.current = round.id
+        if (res.wallet) syncWallet(res.wallet)
+        const crash = Number(round.result?.crashPoint)
+        const cashedAt = Number(round.result?.cashedOutAt)
+        const stake = centsToCoins(round.stake)
+        if (res.state === 'cashed' && cashedAt > 0) {
+            const payout = round.payout != null ? centsToCoins(round.payout) : stake * cashedAt
+            setBetPlaced(false)
+            setUserBetData(prev => ({
+                name: t('crash.you'),
+                amount: stake,
+                ...prev,
+                active: false,
+                cashoutAt: cashedAt.toFixed(2),
+                profit: payout.toFixed(2)
+            }))
+            showToast('win', t('games.youWon'), t('crash.wonBody', { amount: formatCoins(payout - stake), multiplier: formatMultiplier(cashedAt) }), 4000)
+            // The crash point is public now: let the rocket fly on to it.
+            if (crash > 0) setCrashPoint(crash)
+        } else {
+            setCrashPoint(crash)
+            setMultiplier(crash)
+            setElapsedTime(Math.log(crash) / 0.1)
+            setPhase(PHASE.CRASHED)
+            handleCrashRef.current(crash)
+        }
+    }, [syncWallet, showToast])
+    applyServerResultRef.current = applyServerResult
+
+    // Starts the server round with the bet placed during the countdown.
+    const startServerRound = useCallback(async (bet) => {
+        try {
+            const res = await gameApi.crash.start({ stake: bet.amount, autoCashout: bet.autoCashout })
+            syncWallet(res.wallet)
+            settledRef.current = null
+            roundIdRef.current = res.round.id
+            setRoundId(res.round.id)
+            setCrashPoint(Infinity)
+            startTimeRef.current = Date.now()
+            setPhase(PHASE.RUNNING)
+        } catch (error) {
+            showToast('error', t('crash.serverRoundFailed'), errorMessage(error))
+            setBetPlaced(false)
+            setUserBetData(null)
+            // Purely visual round: no stake was taken, so nothing can be won or lost in it.
+            const point = await generateCrashPoint()
+            setCrashPoint(point)
+            setPhase(PHASE.RUNNING)
+            startTimeRef.current = Date.now()
+        }
+    }, [syncWallet, showToast, generateCrashPoint])
+
+    // Follows the server round: watch() answers when it crashes or the automatic cash out fires.
+    useEffect(() => {
+        if (!serverMode || !roundId || phase !== PHASE.RUNNING) return
+        let cancelled = false
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+        ;(async () => {
+            let failures = 0
+            while (!cancelled) {
+                try {
+                    const res = await gameApi.crash.watch(roundId)
+                    if (cancelled) return
+                    failures = 0
+                    if (res.state !== 'running') {
+                        applyServerResultRef.current(res)
+                        return
+                    }
+                } catch (error) {
+                    if (cancelled) return
+                    if (++failures >= 5) {
+                        // The server closes the open round as a cash out on the next start or resume.
+                        showToast('error', t('crash.serverRoundFailed'), errorMessage(error))
+                        setBetPlaced(false)
+                        setUserBetData(null)
+                        startCountdown()
+                        return
+                    }
+                    await sleep(1500)
+                }
+            }
+        })()
+        return () => { cancelled = true }
+    }, [serverMode, roundId, phase, showToast, startCountdown])
+
+    // Resume an open server round after a reload.
+    useEffect(() => {
+        if (!serverMode) return
+        let cancelled = false
+        gameApi.crash.current().then((res) => {
+            if (cancelled || !res.round || startingRef.current) return
+            const stake = centsToCoins(res.round.stake)
+            if (res.state !== 'running') {
+                // Ended while the player was away: only the wallet and a note.
+                if (settledRef.current === res.round.id) return
+                settledRef.current = res.round.id
+                if (res.wallet) syncWallet(res.wallet)
+                const cashedAt = Number(res.round.result?.cashedOutAt)
+                if (res.state === 'cashed' && cashedAt > 0) {
+                    const payout = res.round.payout != null ? centsToCoins(res.round.payout) : stake * cashedAt
+                    showToast('win', t('games.youWon'), t('crash.wonBody', { amount: formatCoins(payout - stake), multiplier: formatMultiplier(cashedAt) }), 4000)
+                } else {
+                    showToast('loss', t('crash.lostTitle'), t('crash.lostBody', { amount: formatCoins(stake), multiplier: formatMultiplier(Number(res.round.result?.crashPoint) || 1) }), 4000)
+                }
+                return
+            }
+            settledRef.current = null
+            roundIdRef.current = res.round.id
+            startingRef.current = true
+            startTimeRef.current = Date.now() - res.elapsedMs
+            setRoundId(res.round.id)
+            setCrashPoint(Infinity)
+            setBetAmount(stake)
+            setBetPlaced(true)
+            setUserBetData({ name: t('crash.you'), amount: stake, active: true, cashoutAt: null, profit: null })
+            setPhase(PHASE.RUNNING)
+        }).catch((error) => {
+            if (!cancelled) showToast('error', t('crash.serverRoundFailed'), errorMessage(error))
+        })
+        return () => { cancelled = true }
+    }, [serverMode, syncWallet, showToast])
 
     // Handle player cashout notification
     const handlePlayerCashout = useCallback((cashoutData) => {
@@ -441,23 +585,55 @@ function CrashGame() {
             }, 100)
             return () => clearTimeout(timer)
         } else if (phase === PHASE.WAITING && countdown <= 0) {
-            // Generate crash point async with ProvablyFair
+            if (startingRef.current) return
+            startingRef.current = true
+            if (serverMode && pendingBetRef.current) {
+                const bet = pendingBetRef.current
+                pendingBetRef.current = null
+                startServerRound(bet)
+                return
+            }
+            // Generate crash point async with ProvablyFair (visitors, or a server-mode round without a bet)
             generateCrashPoint().then(point => {
                 setCrashPoint(point)
                 setPhase(PHASE.RUNNING)
                 startTimeRef.current = Date.now()
             })
         }
-    }, [phase, countdown, generateCrashPoint])
+    }, [phase, countdown, generateCrashPoint, serverMode, startServerRound])
 
     // Initial start
     useEffect(() => {
-        const timer = setTimeout(startCountdown, 1000)
+        // A resumed server round already owns the screen.
+        const timer = setTimeout(() => { if (!roundIdRef.current) startCountdown() }, 1000)
         return () => clearTimeout(timer)
     }, [startCountdown])
 
-    const handleBet = (amount) => {
+    const handleBet = (amount, autoCashout = null) => {
         const insufficient = () => showToast('error', t('games.insufficientTitle'), t('crash.insufficientBody', { need: formatCoins(amount), have: formatCoins(balance) }))
+        if (serverMode) {
+            if (startingRef.current || phase !== PHASE.WAITING) {
+                showToast('error', t('crash.betTooLateTitle'), t('crash.betTooLate'))
+                return
+            }
+            // Nothing is charged yet: the stake is taken when the server round starts with the run.
+            if (betPlaced) {
+                pendingBetRef.current = null
+                setBetPlaced(false)
+                setUserBetData(null)
+                return
+            }
+            if (amount > balance) {
+                insufficient()
+                return
+            }
+            pendingBetRef.current = { amount, autoCashout }
+            setBetAmount(amount)
+            setBetPlaced(true)
+            setUserBetData({ name: t('crash.you'), amount, active: true, cashoutAt: null, profit: null })
+            showToast('bet', t('games.betPlaced'), t('crash.betBody', { amount: formatCoins(amount) }), 2500)
+            return
+        }
         if (amount > balance) {
             insufficient()
             return
@@ -479,7 +655,21 @@ function CrashGame() {
     }
 
     // Handle cashout
-    const handleCashout = () => {
+    const handleCashout = async () => {
+        if (serverMode) {
+            if (phase !== PHASE.RUNNING || !betPlaced || !roundIdRef.current || cashingRef.current) return
+            cashingRef.current = true
+            try {
+                // The server pays the lower of this claim and its own clock.
+                const claimed = Math.max(1, Math.floor(multiplierRef.current * 100) / 100)
+                applyServerResultRef.current(await gameApi.crash.cashout(roundIdRef.current, claimed))
+            } catch (error) {
+                showToast('error', t('crash.serverRoundFailed'), errorMessage(error))
+            } finally {
+                cashingRef.current = false
+            }
+            return
+        }
         if (phase === PHASE.RUNNING && betPlaced) {
             const winAmount = betAmount * multiplier
             const profit = winAmount - betAmount
@@ -536,7 +726,14 @@ function CrashGame() {
                             multiplier={multiplier}
                             onBet={handleBet}
                             onCashout={handleCashout}
+                            serverMode={serverMode}
                         />
+
+                        {serverMode && (
+                            <Text type="secondary" className="crash-server-note" style={{ display: 'block', fontSize: 11, padding: '8px 12px 0' }}>
+                                {t('crash.serverNote')}
+                            </Text>
+                        )}
 
                         {/* Player Bets List */}
                         {showPlayerBets && !isMobileLayout && (
@@ -911,6 +1108,11 @@ function CrashGame() {
                 className="fairness-modal"
                 centered
             >
+                {serverMode ? (
+                    <div className="fairness-header">
+                        <Paragraph>{t('crash.serverFair')}</Paragraph>
+                    </div>
+                ) : (<>
                 {/* Header Card */}
                 <div className="fairness-header">
                     <Title level={5}>
@@ -1008,6 +1210,7 @@ function CrashGame() {
                 >
                     {t('crash.rotateReveal')}
                 </Button>
+                </>)}
             </Modal>
         </div>
     )

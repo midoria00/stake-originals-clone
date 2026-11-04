@@ -82,6 +82,18 @@ before(async () => {
 
 after(() => db.close())
 
+describe('server RNG', () => {
+    test('the crypto RNG yields floats in [0, 1) and ints in range', async () => {
+        const { cryptoRng } = await import('./games.js')
+        for (let i = 0; i < 2000; i += 1) {
+            const f = cryptoRng.float()
+            assert.ok(f >= 0 && f < 1)
+            const n = cryptoRng.int(3, 7)
+            assert.ok(Number.isInteger(n) && n >= 3 && n < 7)
+        }
+    })
+})
+
 describe('disabled configuration', () => {
     test('without Supabase settings the API says so and never fakes a session', async () => {
         const off = createAccountApp({ env: {} })

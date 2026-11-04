@@ -19,23 +19,14 @@ import Chart from 'chart.js/auto'
 
 const { Title, Text, Paragraph } = Typography;
 import { useWallet } from '../../context/WalletContext'
+import { gameApi, errorMessage, centsToCoins } from '../../account/api'
+import { minesMultiplier } from '../../games/mines/mines'
 import ProvablyFair from '../../utils/ProvablyFair'
 import { Coins, CoinIcon, Logo } from '../../brand/Brand'
 import { t } from '../../i18n'
 import { formatCoins, formatMultiplier, formatNumber } from '../../i18n/format'
 import MobileBetSheet from '../MobileBetSheet'
 import './MinesGame.css'
-
-const HOUSE_EDGE = 0.99; // 1% edge
-
-const calculateMultiplier = (mines, hits) => {
-    if (hits === 0) return 1.00;
-    let mult = 1;
-    for (let i = 0; i < hits; i++) {
-        mult *= (25 - i) / (25 - mines - i);
-    }
-    return mult * HOUSE_EDGE;
-};
 
 // SVG Icons inline to avoid ant-design missing ones if any
 const HistoryIcon = () => (
@@ -51,7 +42,12 @@ const StatsIcon = () => (
 )
 
 function MinesGame() {
-    const { balance, placeBet, addWinnings, showToast } = useWallet();
+    const { balance, placeBet, addWinnings, showToast, mode, syncWallet } = useWallet();
+    const server = mode === 'server';
+    // Server mode: the round lives on the server; `busy` blocks parallel requests (ref for same-tick clicks).
+    const [busy, setBusy] = useState(false);
+    const busyRef = useRef(false);
+    const roundIdRef = useRef(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [betAmount, setBetAmount] = useState(1);
     const [minesCount, setMinesCount] = useState(3);
@@ -128,12 +124,12 @@ function MinesGame() {
     useEffect(() => {
         const pf = fairnessRef.current;
         // Don't update debug data while game is playing, so it matches the current game.
-        if (isDebugMode && pf && pf._hashReady && !isPlaying) {
+        if (isDebugMode && pf && pf._hashReady && !isPlaying && !server) {
             pf.peekMinesPositions(minesCount).then(data => {
                 setDebugData(data);
             }).catch(err => console.error('Peek info error:', err));
         }
-    }, [isDebugMode, fairnessData, minesCount, isPlaying]);
+    }, [isDebugMode, fairnessData, minesCount, isPlaying, server]);
 
     // Handle client seed change
     const handleChangeClientSeed = useCallback(async () => {
@@ -338,7 +334,7 @@ function MinesGame() {
     }
 
     const currentMultiplier = useMemo(() => {
-        return calculateMultiplier(minesCount, revealedTiles.length);
+        return minesMultiplier(minesCount, revealedTiles.length);
     }, [minesCount, revealedTiles.length]);
 
     const potentialWin = useMemo(() => {
@@ -361,8 +357,130 @@ function MinesGame() {
         }
     };
 
+    const recordResult = (profit, won) => {
+        setTotalProfit(prev => prev + profit);
+        if (won) setWinsCount(prev => prev + 1); else setLossesCount(prev => prev + 1);
+        setWinRecords(prev => [...prev, profit]);
+        profitHistoryRef.current.push(profitHistoryRef.current[profitHistoryRef.current.length - 1] + profit);
+    };
+
+    // Puts the board in the state of the open round (or idle when there is none).
+    const applyOpenRound = (round) => {
+        if (!round || round.status !== 'open') {
+            roundIdRef.current = null;
+            setIsPlaying(false);
+            return;
+        }
+        roundIdRef.current = round.id;
+        setBetAmount(centsToCoins(round.stake));
+        setMinesCount(round.params.mines);
+        setRevealedTiles(round.state?.revealed ?? []);
+        setMineLocations([]);
+        setGameOverState(null);
+        setIsPlaying(true);
+    };
+
+    // Runs one server request at a time; failures surface as a toast.
+    const runServer = async (action) => {
+        if (busyRef.current) return;
+        busyRef.current = true;
+        setBusy(true);
+        try {
+            await action();
+        } catch (error) {
+            showToast('error', t('mines.toast.serverErrorTitle'), errorMessage(error));
+            // A raced or stale request means our view of the round is outdated: reload it.
+            if (error?.code === 'round_conflict' || error?.code === 'tile_revealed' || error?.code === 'round_not_found') {
+                try { applyOpenRound((await gameApi.mines.current()).round); } catch { /* keep current view */ }
+            }
+        } finally {
+            busyRef.current = false;
+            setBusy(false);
+        }
+    };
+
+    // A settled round carries the mine positions; nothing reveals them earlier.
+    const finishServerRound = (round, wallet, hitTile) => {
+        roundIdRef.current = null;
+        syncWallet(wallet);
+        const { mines, revealed, multiplier } = round.result;
+        const stake = centsToCoins(round.stake);
+        const payout = centsToCoins(round.payout);
+        setMineLocations(mines);
+        setRevealedTiles(hitTile === undefined ? revealed : [...revealed, hitTile]);
+        setIsPlaying(false);
+        setBetAmount(stake);
+        if (payout > 0) {
+            setGameOverState('win');
+            recordResult(payout - stake, true);
+            showToast('win', t('mines.toast.cashOutTitle'), t('mines.toast.cashOutBody', { amount: formatCoins(payout - stake), multiplier: formatMultiplier(multiplier) }), 4000);
+        } else {
+            setGameOverState('loss');
+            recordResult(-stake, false);
+            showToast('loss', t('mines.toast.lossTitle'), t('mines.toast.lossBody', { amount: formatCoins(stake) }), 3000);
+        }
+        playSound(payout > 0 ? 'win' : 'loss');
+    };
+
+    const startServerGame = () => runServer(async () => {
+        const response = await gameApi.mines.start({ stake: betAmount, mines: minesCount });
+        syncWallet(response.wallet);
+        roundIdRef.current = response.round.id;
+        setMineLocations([]);
+        setRevealedTiles([]);
+        setGameOverState(null);
+        setIsPlaying(true);
+        showToast('bet', t('mines.toast.startedTitle'), t('mines.toast.startedBody', { amount: formatCoins(betAmount) }));
+    });
+
+    const revealServerTile = (index) => runServer(async () => {
+        const response = await gameApi.mines.reveal(roundIdRef.current, index);
+        if (response.outcome === 'gem') {
+            setRevealedTiles(response.round.state.revealed);
+            playSound('gem');
+        } else if (response.outcome === 'mine') {
+            finishServerRound(response.round, response.wallet, index);
+        } else if (response.outcome === 'cleared') {
+            finishServerRound(response.round, response.wallet);
+        } else {
+            applyOpenRound((await gameApi.mines.current()).round);
+        }
+    });
+
+    const cashoutServer = () => runServer(async () => {
+        const response = await gameApi.mines.cashout(roundIdRef.current);
+        if (response.outcome === 'cashed') finishServerRound(response.round, response.wallet);
+        else applyOpenRound((await gameApi.mines.current()).round);
+    });
+
+    // Resume the open round after a reload; reset the board if the session leaves server mode.
+    useEffect(() => {
+        if (!server) {
+            if (roundIdRef.current) {
+                roundIdRef.current = null;
+                setIsPlaying(false);
+                setRevealedTiles([]);
+                setMineLocations([]);
+            }
+            return undefined;
+        }
+        let cancelled = false;
+        gameApi.mines.current()
+            .then(({ round }) => { if (!cancelled && !busyRef.current && round) applyOpenRound(round); })
+            .catch((error) => { if (!cancelled) showToast('error', t('mines.toast.serverErrorTitle'), errorMessage(error)); });
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [server]);
+
     const startGame = async () => {
         if (betAmount <= 0) return;
+        if (server) {
+            if (betAmount > balance) {
+                showToast('error', t('games.insufficientTitle'), t('mines.toast.insufficientBody', { amount: formatCoins(betAmount) }));
+                return;
+            }
+            return startServerGame();
+        }
         const pf = fairnessRef.current;
         if (!pf) return;
 
@@ -412,6 +530,7 @@ function MinesGame() {
 
     const cashout = () => {
         if (!isPlaying || revealedTiles.length === 0) return;
+        if (server) { cashoutServer(); return; }
         endGame('win');
     };
 
@@ -430,7 +549,8 @@ function MinesGame() {
     };
 
     const handleTileClick = (index) => {
-        if (!isPlaying || revealedTiles.includes(index) || gameOverState) return;
+        if (!isPlaying || revealedTiles.includes(index) || gameOverState || busyRef.current) return;
+        if (server) { revealServerTile(index); return; }
 
         if (mineLocations.includes(index)) {
             // Hit a mine
@@ -447,7 +567,7 @@ function MinesGame() {
                 // Auto win
                 setIsPlaying(false);
                 setGameOverState('win');
-                const finalMult = calculateMultiplier(minesCount, newRevealed.length);
+                const finalMult = minesMultiplier(minesCount, newRevealed.length);
                 const finalWin = betAmount * finalMult;
                 const profit = finalWin - betAmount;
                 addWinnings(finalWin, 'mines');
@@ -504,6 +624,7 @@ function MinesGame() {
                     key={i}
                     aria-label={tileLabel}
                     className={`mine-tile ${statusClass} ${(!isPlaying || isRevealed) ? 'inactive' : ''}`}
+                    disabled={busy}
                     onClick={() => {
                         if (!isPlaying || isRevealed) return;
                         handleTileClick(i);
@@ -605,7 +726,7 @@ function MinesGame() {
 
                             {/* Action Buttons */}
                             {!isPlaying ? (
-                                <button className="btn-bet-mines" onClick={startGame}>
+                                <button className="btn-bet-mines" onClick={startGame} disabled={busy}>
                                     {t('mines.bet')}
                                 </button>
                             ) : (
@@ -613,13 +734,14 @@ function MinesGame() {
                                     <button
                                         className="btn-bet-mines"
                                         onClick={cashout}
-                                        disabled={revealedTiles.length === 0}
+                                        disabled={revealedTiles.length === 0 || busy}
                                     >
                                         {t('mines.cashOut')}
                                     </button>
                                     <button
                                         className="btn-random-pick mobile-sheet-secondary"
                                         onClick={pickRandom}
+                                        disabled={busy}
                                     >
                                         {t('mines.randomPick')}
                                     </button>
@@ -692,7 +814,7 @@ function MinesGame() {
                     </div>
 
                     {/* Debug Overlay */}
-                    {isDebugMode && debugData && (
+                    {isDebugMode && debugData && !server && (
                         <div className="fixed-widget debug-widget fade-in-scale" ref={debugWidgetRef}>
                             <div className="widget-header debug-widget-header" onMouseDown={handleDebugDragStart}>
                                 <div className="widget-title">
@@ -787,6 +909,20 @@ function MinesGame() {
                     content: { background: '#1a2c38', padding: 0 }
                 }}
             >
+                {server ? (
+                    <>
+                        <div className="fairness-header">
+                            <Title level={5}>
+                                <CheckCircleOutlined style={{ marginRight: 8 }} />
+                                {t('mines.fairnessModal.serverHeadline')}
+                            </Title>
+                            <Paragraph>{t('mines.fairnessModal.serverNotice')}</Paragraph>
+                        </div>
+                        <Button type="primary" block onClick={() => setFairnessModalOpen(false)} style={{ background: 'var(--primary)', border: 'none', color: '#000', fontWeight: 'bold' }}>
+                            {t('mines.close')}
+                        </Button>
+                    </>
+                ) : (<>
                 <div className="fairness-header">
                     <Title level={5}>
                         <CheckCircleOutlined style={{ marginRight: 8 }} />
@@ -856,6 +992,7 @@ function MinesGame() {
                         {t('mines.close')}
                     </Button>
                 </div>
+                </>)}
             </Modal>
 
             {/* Play History & Dashboard Modal */}

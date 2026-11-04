@@ -1,84 +1,23 @@
-import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
-import { Menu, Star, UserRound } from 'lucide-react'
-import { Coins, Logo } from '../brand/Brand'
+import { Menu, Star } from 'lucide-react'
+import { Logo } from '../brand/Brand'
+import { HeaderAccount } from '../account/components'
 import { useWallet } from '../context/WalletContext'
 import { gameFromPath } from '../games'
 import { t } from '../i18n'
-import { formatCoins, formatNumber, formatTime } from '../i18n/format'
+import { formatNumber } from '../i18n/format'
 import { useFavoriteGames } from '../lib/storage'
-import { FREE_CREDIT_OPTIONS, FREE_CREDITS_CEILING } from '../wallet/ledger'
+import { FREE_CREDITS_CEILING } from '../wallet/ledger'
 import SearchBox from './SearchBox'
 
 const CASINO_PATHS = ['/cassino', '/favoritos', '/recentes']
 
 export function useFreeCredits() {
     const { addFreeCredits, showToast } = useWallet()
-    return (amount) => {
-        if (addFreeCredits(amount)) showToast('win', t('wallet.addedTitle'), t('wallet.addedBody', { amount: formatNumber(amount) }))
+    return async (amount) => {
+        if (await addFreeCredits(amount)) showToast('win', t('wallet.addedTitle'), t('wallet.addedBody', { amount: formatNumber(amount) }))
         else showToast('error', t('wallet.addFree'), t('wallet.ceilingReached', { limit: formatNumber(FREE_CREDITS_CEILING) }))
     }
-}
-
-function WalletMenu() {
-    const { balance, history } = useWallet()
-    const addFree = useFreeCredits()
-    const [open, setOpen] = useState(false)
-    const rootRef = useRef(null)
-
-    useEffect(() => {
-        if (!open) return undefined
-        const onPointer = (event) => !rootRef.current?.contains(event.target) && setOpen(false)
-        const onKey = (event) => event.key === 'Escape' && setOpen(false)
-        document.addEventListener('pointerdown', onPointer)
-        document.addEventListener('keydown', onKey)
-        return () => {
-            document.removeEventListener('pointerdown', onPointer)
-            document.removeEventListener('keydown', onKey)
-        }
-    }, [open])
-
-    return (
-        <div className="wallet-menu" ref={rootRef}>
-            <button
-                type="button"
-                className="wallet-menu__button"
-                aria-expanded={open}
-                aria-haspopup="dialog"
-                aria-label={t('wallet.openWallet', { amount: formatCoins(balance) })}
-                onClick={() => setOpen((value) => !value)}
-            >
-                <Coins value={balance} />
-            </button>
-            {open && (
-                <div className="wallet-menu__panel" role="dialog" aria-label={t('wallet.title')}>
-                    <p className="wallet-menu__label">{t('wallet.balance')}</p>
-                    <p className="wallet-menu__balance"><Coins value={balance} size={22} /></p>
-                    <p className="wallet-menu__note">{t('wallet.whatAreCoins')}</p>
-                    <p className="wallet-menu__label">{t('wallet.addFree')}</p>
-                    <div className="wallet-menu__chips">
-                        {FREE_CREDIT_OPTIONS.map((amount) => (
-                            <button key={amount} type="button" onClick={() => addFree(amount)}>{t('wallet.addAmount', { amount: formatNumber(amount) })}</button>
-                        ))}
-                    </div>
-                    {history.length > 0 && (
-                        <ul className="wallet-menu__history" aria-label={t('wallet.history')}>
-                            {history.slice(0, 4).map((entry) => (
-                                <li key={entry.id}>
-                                    <span>{t(`wallet.types.${entry.type}`)} · {t(`wallet.sources.${entry.source}`)}</span>
-                                    <span className={entry.type === 'bet' ? 'is-negative' : 'is-positive'}>
-                                        {entry.type === 'bet' ? '−' : '+'}{formatCoins(entry.amount)}
-                                    </span>
-                                    <time dateTime={entry.at}>{formatTime(entry.at)}</time>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                    <Link to="/carteira" className="wallet-menu__link" onClick={() => setOpen(false)}>{t('home.openWallet')}</Link>
-                </div>
-            )}
-        </div>
-    )
 }
 
 function Header({ menuOpen, menuButtonRef, onMenuClick }) {
@@ -128,11 +67,7 @@ function Header({ menuOpen, menuButtonRef, onMenuClick }) {
                         <Star size={18} aria-hidden="true" />
                     </Link>
                 )}
-                <WalletMenu />
-                <span className="visitor-chip app-header__desktop" title={t('common.visitorHint')}>
-                    <UserRound size={16} aria-hidden="true" />
-                    {t('common.visitor')}
-                </span>
+                <HeaderAccount />
             </div>
         </header>
     )

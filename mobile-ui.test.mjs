@@ -28,9 +28,15 @@ test('mobile shell exposes drawer, compact header, and five-item bottom navigati
     assert.match(header, /ref=\{menuButtonRef\}/)
     assert.match(header, /aria-expanded=\{menuOpen\}/)
     assert.match(navigation, /afterOpenChange=/)
-    // One wallet control in the header, with a single disclosure panel.
-    assert.equal((header.match(/className="wallet-menu__panel"/g) || []).length, 1)
-    assert.match(header, /aria-expanded=\{open\}/)
+    // The header delegates to the account controls: Entrar | Criar conta for visitors, one balance
+    // disclosure and one profile menu (each with aria-expanded) once signed in.
+    const account = await source('./src/account/components.jsx')
+    assert.match(header, /<HeaderAccount \/>/)
+    assert.equal((account.match(/className="account-menu__panel account-menu__panel--wallet"/g) || []).length, 1)
+    assert.equal((account.match(/role="menu"/g) || []).length, 1)
+    assert.equal((account.match(/aria-expanded=\{open\}/g) || []).length, 2)
+    assert.match(account, /openAuth\('login'\)\}>\{t\('account\.signIn'\)\}/)
+    assert.match(account, /openAuth\('signup'\)\}>\{t\('account\.signUp'\)\}/)
     // Início, Cassino, Esportes, Bilhete (opens the slip) and Carteira.
     assert.match(navigation, /aria-label=\{t\('nav\.primary'\)\}/)
     assert.match(navigation, /const primaryRoutes = \[/)

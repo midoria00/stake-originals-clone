@@ -57,6 +57,8 @@ import { t } from '../../i18n';
 import { formatCoins, formatMultiplier, formatNumber } from '../../i18n/format';
 
 import { useWallet } from '../../context/WalletContext';
+import { gameApi, errorMessage, centsToCoins } from '../../account/api';
+import { dinoMultiplier } from '../../games/dino/dino';
 import MobileBetSheet from '../MobileBetSheet';
 import './DinoGame.css';
 
@@ -122,7 +124,15 @@ class DinoGameInstance extends Phaser.Game {
 
 function DinoGame() {
     App.useApp();
-    const { balance, placeBet: walletPlaceBet, addWinnings, showToast } = useWallet();
+    const { balance, placeBet: walletPlaceBet, addWinnings, showToast, mode, syncWallet } = useWallet();
+    const server = mode === 'server';
+    // Server mode: the server rolls every obstacle. `busy` blocks parallel requests (ref covers same-tick clicks).
+    const [busy, setBusy] = useState(false);
+    const busyRef = useRef(false);
+    const roundIdRef = useRef(null);
+    const roundStepRef = useRef(0);
+    // Round left open by an earlier visit (server mode): the player can cash it out or let the next bet close it.
+    const [openRound, setOpenRound] = useState(null);
     const [betAmount, setBetAmount] = useState(1);
     const [difficulty, setDifficulty] = useState('medium');
     const [gamePhase, setGamePhase] = useState('idle'); // idle | betting | running | waiting | crashed | cashed_out
@@ -206,28 +216,34 @@ function DinoGame() {
     // Fetch peek data for Fairness Debug whenever conditions change
     useEffect(() => {
         const pf = fairnessRef.current;
-        if (isDebugMode && pf && pf._hashReady) {
+        if (isDebugMode && pf && pf._hashReady && !server) {
             const diff = DIFFICULTIES[difficulty];
             pf.peekDinoStep(diff.survivalChance).then(data => {
                 setDebugData(data);
             }).catch(err => console.error("Peek info error:", err));
         }
-    }, [isDebugMode, fairnessData, difficulty, gamePhase]);
+    }, [isDebugMode, fairnessData, difficulty, gamePhase, server]);
 
     // Calculate multiplier from obstacles cleared with precise 99% RTP
-    const getMultiplierForCleared = useCallback((cleared) => {
-        if (cleared <= 0) return 1.00;
-        const diff = DIFFICULTIES[difficulty];
+    const getMultiplierForCleared = useCallback((cleared) => dinoMultiplier(difficulty, cleared), [difficulty]);
 
-        // Survivor probability for 'cleared' hurdles
-        const probability = Math.pow(diff.survivalChance, cleared);
-
-        // 0.99 is 99% RTP (Return To Player) -> 1% house edge
-        const pureMultiplier = 0.99 / probability;
-
-        // Floor to 2 decimals
-        return parseFloat((Math.floor(pureMultiplier * 100) / 100).toFixed(2));
-    }, [difficulty]);
+    // Resume: look for a round left open on the server.
+    useEffect(() => {
+        if (!server) {
+            setOpenRound(null);
+            return undefined;
+        }
+        let cancelled = false;
+        gameApi.dino.current()
+            .then(({ round }) => {
+                if (cancelled || !round || round.status !== 'open' || roundIdRef.current || busyRef.current) return;
+                const cleared = round.state?.cleared ?? 0;
+                setOpenRound({ id: round.id, stake: centsToCoins(round.stake), difficulty: round.params.difficulty, cleared, multiplier: dinoMultiplier(round.params.difficulty, cleared) });
+            })
+            .catch((error) => { if (!cancelled) showToast('error', t('dino.toast.serverErrorTitle'), errorMessage(error)); });
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [server]);
 
     // Initialize Phaser game
     useEffect(() => {
@@ -324,10 +340,27 @@ function DinoGame() {
     }, []);
 
     // Place bet
-    const placeBet = useCallback(() => {
-        if (betAmount <= 0 || betAmount > balance) return;
+    const placeBet = useCallback(async () => {
+        if (betAmount <= 0 || betAmount > balance || busyRef.current) return;
 
-        if (!walletPlaceBet(betAmount, 'dino')) return;
+        if (server) {
+            busyRef.current = true;
+            setBusy(true);
+            try {
+                // Starting a round also closes any abandoned one as a cash out.
+                const response = await gameApi.dino.start({ stake: betAmount, difficulty });
+                syncWallet(response.wallet);
+                roundIdRef.current = response.round.id;
+                roundStepRef.current = response.round.step;
+                setOpenRound(null);
+            } catch (error) {
+                showToast('error', t('dino.toast.serverErrorTitle'), errorMessage(error));
+                return;
+            } finally {
+                busyRef.current = false;
+                setBusy(false);
+            }
+        } else if (!walletPlaceBet(betAmount, 'dino')) return;
         setTotalWagered(prev => prev + betAmount);
         setGamesPlayed(prev => prev + 1);
         setGamePhase('betting');
@@ -350,16 +383,40 @@ function DinoGame() {
                 scene.events.emit(CONFIG.EVENTS.GAME_RESTART);
             }
         }
-    }, [betAmount, balance, difficulty, showToast, walletPlaceBet]);
+    }, [betAmount, balance, difficulty, showToast, walletPlaceBet, server, syncWallet]);
 
     // Keep placeBet ref updated for Phaser to call
     useEffect(() => {
         placeBetRef.current = placeBet;
     }, [placeBet]);
 
-    // Jump (gamble for next obstacle) - uses ProvablyFair
+    // Shared end-of-run bookkeeping for a cash out (the wallet was already credited by the caller).
+    const finishCashOut = useCallback((winAmount, multiplier, cleared) => {
+        const gameScene = gameSceneRef.current;
+        const profit = winAmount - betAmountRef.current;
+        setTotalProfit(prev => prev + profit);
+        setWinRecords(prev => [...prev, profit]);
+        setLastResult({
+            type: 'win',
+            obstaclesCleared: cleared,
+            multiplier,
+            amount: winAmount,
+        });
+        setGamePhase('cashed_out');
+        gamePhaseRef.current = 'cashed_out'; // Immediate sync to prevent GAME_OVER listener from logging a loss
+
+        // Disable betting mode and trigger game over to reset
+        if (gameScene) {
+            gameScene.events.emit(CONFIG.EVENTS.BETTING_MODE_OFF);
+            gameScene.events.emit(CONFIG.EVENTS.GAME_OVER, gameScene.score, gameScene.highScore);
+        }
+
+        showToast('win', t('dino.toast.cashedTitle'), t('dino.toast.cashedDesc', { amount: formatCoins(winAmount - betAmountRef.current), multiplier: formatMultiplier(multiplier) }), 4000);
+    }, [showToast]);
+
+    // Jump (gamble for next obstacle): visitors use ProvablyFair, signed-in players ask the server
     const handleJump = useCallback(async () => {
-        if (gamePhase !== 'waiting') return;
+        if (gamePhase !== 'waiting' || busyRef.current) return;
         const gameScene = gameSceneRef.current;
         if (!gameScene) return;
 
@@ -367,7 +424,36 @@ function DinoGame() {
         const pf = fairnessRef.current;
 
         let survived;
-        if (pf) {
+        let serverCleared;
+        let serverMultiplier;
+        if (server) {
+            busyRef.current = true;
+            setBusy(true);
+            try {
+                const response = await gameApi.dino.jump(roundIdRef.current, roundStepRef.current);
+                if (response.outcome === 'cleared') {
+                    roundStepRef.current = response.round.step;
+                    survived = true;
+                    serverCleared = response.cleared;
+                    serverMultiplier = response.multiplier;
+                } else {
+                    if (response.wallet) syncWallet(response.wallet);
+                    roundIdRef.current = null;
+                    if (response.outcome === 'settled' && response.round?.payout > 0) {
+                        // The round was already cashed out elsewhere.
+                        finishCashOut(centsToCoins(response.round.payout), response.round.result?.multiplier ?? 1, response.round.result?.cleared ?? 0);
+                        return;
+                    }
+                    survived = false;
+                }
+            } catch (error) {
+                showToast('error', t('dino.toast.serverErrorTitle'), errorMessage(error));
+                return;
+            } finally {
+                busyRef.current = false;
+                setBusy(false);
+            }
+        } else if (pf) {
             // Use ProvablyFair HMAC-SHA256
             const result = await pf.generateDinoStep(diff.survivalChance);
             survived = result.survived;
@@ -382,8 +468,8 @@ function DinoGame() {
         if (survived) {
             // RNG says survive!
             gameScene.events.emit(CONFIG.EVENTS.JUMP_SUCCESS);
-            const newCleared = obstaclesCleared + 1;
-            const newMult = getMultiplierForCleared(newCleared);
+            const newCleared = serverCleared ?? obstaclesCleared + 1;
+            const newMult = serverMultiplier ?? getMultiplierForCleared(newCleared);
             setObstaclesCleared(newCleared);
             setCurrentMultiplier(newMult);
             setPotentialWin(betAmountRef.current * newMult);
@@ -399,35 +485,55 @@ function DinoGame() {
             gameScene.events.emit(CONFIG.EVENTS.JUMP_FAIL);
             // Don't change gamePhase here - GAME_OVER event from Phaser will handle it
         }
-    }, [gamePhase, obstaclesCleared, getMultiplierForCleared, highScore, showToast]);
+    }, [gamePhase, obstaclesCleared, getMultiplierForCleared, highScore, showToast, server, syncWallet, finishCashOut]);
 
     // Cash out
-    const cashOut = useCallback(() => {
+    const cashOut = useCallback(async () => {
         if (gamePhase !== 'waiting' && gamePhase !== 'running') return;
-        const gameScene = gameSceneRef.current;
+        if (busyRef.current) return;
+
+        if (server) {
+            busyRef.current = true;
+            setBusy(true);
+            try {
+                const response = await gameApi.dino.cashout(roundIdRef.current);
+                if (response.wallet) syncWallet(response.wallet);
+                roundIdRef.current = null;
+                finishCashOut(centsToCoins(response.round.payout), response.round.result?.multiplier ?? currentMultiplier, response.round.result?.cleared ?? obstaclesCleared);
+            } catch (error) {
+                showToast('error', t('dino.toast.serverErrorTitle'), errorMessage(error));
+            } finally {
+                busyRef.current = false;
+                setBusy(false);
+            }
+            return;
+        }
 
         const winAmount = betAmountRef.current * currentMultiplier;
         addWinnings(winAmount, 'dino');
-        const profit = winAmount - betAmountRef.current;
-        setTotalProfit(prev => prev + profit);
-        setWinRecords(prev => [...prev, profit]);
-        setLastResult({
-            type: 'win',
-            obstaclesCleared,
-            multiplier: currentMultiplier,
-            amount: winAmount,
-        });
-        setGamePhase('cashed_out');
-        gamePhaseRef.current = 'cashed_out'; // Immediate sync to prevent GAME_OVER listener from logging a loss
+        finishCashOut(winAmount, currentMultiplier, obstaclesCleared);
+    }, [gamePhase, currentMultiplier, obstaclesCleared, showToast, server, syncWallet, finishCashOut, addWinnings]);
 
-        // Disable betting mode and trigger game over to reset
-        if (gameScene) {
-            gameScene.events.emit(CONFIG.EVENTS.BETTING_MODE_OFF);
-            gameScene.events.emit(CONFIG.EVENTS.GAME_OVER, gameScene.score, gameScene.highScore);
+    // Cash out a round left open by an earlier visit (server mode only).
+    const cashOutOpenRound = useCallback(async () => {
+        if (!openRound || busyRef.current) return;
+        busyRef.current = true;
+        setBusy(true);
+        try {
+            const response = await gameApi.dino.cashout(openRound.id);
+            if (response.wallet) syncWallet(response.wallet);
+            const payout = centsToCoins(response.round.payout);
+            setOpenRound(null);
+            setWinRecords(prev => [...prev, payout - openRound.stake]);
+            setTotalProfit(prev => prev + payout - openRound.stake);
+            showToast('win', t('dino.toast.cashedTitle'), t('dino.toast.cashedDesc', { amount: formatCoins(payout - openRound.stake), multiplier: formatMultiplier(openRound.multiplier) }), 4000);
+        } catch (error) {
+            showToast('error', t('dino.toast.serverErrorTitle'), errorMessage(error));
+        } finally {
+            busyRef.current = false;
+            setBusy(false);
         }
-
-        showToast('win', t('dino.toast.cashedTitle'), t('dino.toast.cashedDesc', { amount: formatCoins(winAmount - betAmountRef.current), multiplier: formatMultiplier(currentMultiplier) }), 4000);
-    }, [gamePhase, currentMultiplier, obstaclesCleared, showToast]);
+    }, [openRound, showToast, syncWallet]);
 
     // Fullscreen
     const toggleFullscreen = useCallback(() => {
@@ -699,17 +805,33 @@ function DinoGame() {
                             </div>
                             <div className="difficulty-info">
                                 <Text type="secondary" style={{ fontSize: 11 }}>
-                                    {t('dino.rtp', { rtp: '99%' })}
+                                    {t(server ? 'dino.rtpServer' : 'dino.rtp', { rtp: '99%' })}
                                 </Text>
                             </div>
                         </div>
+
+                        {/* Round left open on the server */}
+                        {server && canBet && openRound && (
+                            <div className="last-win-card current">
+                                <div className="last-win-header">
+                                    <FireOutlined className="fire-icon" />
+                                    <span>{t('dino.openRound.title')}</span>
+                                </div>
+                                <div className="last-win-multiplier">{formatMultiplier(openRound.multiplier)}</div>
+                                <div className="last-win-score">{t('dino.cleared', { count: openRound.cleared })}</div>
+                                <button className="bet-button" style={{ marginTop: 8 }} onClick={cashOutOpenRound} disabled={busy}>
+                                    <TrophyOutlined /> {t('dino.cashOut')} <Coins value={openRound.stake * openRound.multiplier} size={14} />
+                                </button>
+                                <Text type="secondary" style={{ fontSize: 11 }}>{t('dino.openRound.hint')}</Text>
+                            </div>
+                        )}
 
                         {/* Action Buttons */}
                         {canBet && (
                             <button
                                 className="bet-button"
                                 onClick={placeBet}
-                                disabled={betAmount <= 0 || betAmount > balance}
+                                disabled={betAmount <= 0 || betAmount > balance || busy}
                             >
                                 <PlayCircleOutlined /> {gamePhase === 'idle' ? t('dino.placeBet') : t('dino.playAgain')}
                             </button>
@@ -721,7 +843,7 @@ function DinoGame() {
                                     className="bet-button jump-btn"
                                     style={{ marginBottom: '12px' }}
                                     onClick={handleJump}
-                                    disabled={gamePhase !== 'waiting'}
+                                    disabled={gamePhase !== 'waiting' || busy}
                                 >
                                     <div>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
@@ -735,7 +857,7 @@ function DinoGame() {
                                 <button
                                     className="bet-button"
                                     onClick={cashOut}
-                                    disabled={!(gamePhase === 'waiting' || (gamePhase === 'running' && obstaclesCleared > 0))}
+                                    disabled={busy || !(gamePhase === 'waiting' || (gamePhase === 'running' && obstaclesCleared > 0))}
                                 >
                                     <TrophyOutlined /> {t('dino.cashOut')} <Coins value={betAmount * currentMultiplier} size={14} />
                                 </button>
@@ -841,7 +963,7 @@ function DinoGame() {
                         )}
 
                         {/* Debug Overlay */}
-                        {isDebugMode && fairnessData && (
+                        {isDebugMode && fairnessData && !server && (
                             <div className="fixed-widget debug-widget fade-in-scale" ref={debugWidgetRef}>
                                 <div className="widget-header debug-widget-header" onMouseDown={handleDebugDragStart}>
                                     <div className="widget-title">
@@ -1104,6 +1226,15 @@ function DinoGame() {
                     content: { background: '#1a2c38', padding: 0 }
                 }}
             >
+                {server ? (
+                    <div className="fairness-header">
+                        <Title level={5}>
+                            <CheckCircleOutlined style={{ marginRight: 8 }} />
+                            {t('dino.fair.serverHeading')}
+                        </Title>
+                        <Paragraph>{t('dino.fair.serverNotice')}</Paragraph>
+                    </div>
+                ) : (<>
                 <div className="fairness-header">
                     <Title level={5}>
                         <CheckCircleOutlined style={{ marginRight: 8 }} />
@@ -1188,6 +1319,7 @@ function DinoGame() {
                 >
                     {t('dino.fair.rotate')}
                 </Button>
+                </>)}
             </Modal>
         </div>
     );

@@ -155,3 +155,47 @@ test('Auto Bet uses state and exactly one interval owner', () => {
     assert.equal(sidebar.match(/setInterval\(/g)?.length, 1)
     assert.doesNotMatch(sidebar, /autoBetIntervalRef/)
 })
+
+test('server-mode Plinko drops the server bin, counts the request as pending and never requests after cancel', async () => {
+    const server = await createServer({ configFile: false, server: { middlewareMode: true } })
+
+    try {
+        const { dropPlinkoBall } = await server.ssrLoadModule('/src/components/PlinkoGame/dropPlinkoBall.js')
+        const dropped = []
+        const base = {
+            engine: {
+                getActiveBallCount: () => 0,
+                updateBallStyle: () => {},
+                dropBall: (bin) => { dropped.push(bin); return {} },
+            },
+            pendingDrops: { current: 0 },
+            provablyFair: { generatePlinkoPath: () => { throw new Error('local fairness must not run') } },
+            rowCount: 16,
+            betAmount: 1,
+            currentBall: { color: '#f00', image: null },
+            selectedBallType: 'normal',
+            placeBet: () => { throw new Error('local wallet must not be charged') },
+        }
+
+        let resolvePlay
+        const pending = dropPlinkoBall({ ...base, serverPlay: () => new Promise(resolve => { resolvePlay = resolve }) })
+        assert.equal(base.pendingDrops.current, 1)
+        resolvePlay(5)
+        assert.equal(await pending, 'dropped')
+        assert.deepEqual(dropped, [5])
+        assert.equal(base.pendingDrops.current, 0)
+
+        let requests = 0
+        const serverPlay = async () => { requests++; return 3 }
+        assert.equal(await dropPlinkoBall({ ...base, serverPlay, isCancelled: () => true }), 'cancelled')
+        assert.equal(requests, 0)
+
+        const insufficient = Object.assign(new Error('x'), { code: 'insufficient_funds' })
+        assert.equal(await dropPlinkoBall({ ...base, serverPlay: async () => { throw insufficient } }), 'insufficient-funds')
+        assert.equal(await dropPlinkoBall({ ...base, serverPlay: async () => { throw new Error('boom') } }), 'error')
+        assert.deepEqual(dropped, [5])
+        assert.equal(base.pendingDrops.current, 0)
+    } finally {
+        await server.close()
+    }
+})

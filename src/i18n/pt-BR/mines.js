@@ -46,6 +46,7 @@ export default {
         lossTitle: 'Boom!',
         lossBody: '-{amount} coins',
         allGemsTitle: 'Todas as gemas encontradas!',
+        serverErrorTitle: 'Jogada não concluída',
     },
     stats: {
         profit: 'Lucro',
@@ -69,6 +70,8 @@ export default {
         headline: 'Cada rodada pode ser conferida',
         description: 'Usa HMAC-SHA256 para gerar as posições exatas das minas a partir de uma semente do servidor e da sua semente do cliente.',
         applySeed: 'Aplicar semente do cliente',
+        serverHeadline: 'Rodada decidida pelo servidor',
+        serverNotice: 'Rodada decidida pelo servidor da 123bet; o resultado fica no seu histórico.',
         minesCount: 'Quantidade de minas',
         previousSeed: 'Semente anterior do servidor (revelada)',
     },
