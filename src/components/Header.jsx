@@ -1,274 +1,138 @@
-import { useState, useRef, useEffect } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, NavLink, useLocation } from 'react-router-dom'
+import { Menu, Star, UserRound } from 'lucide-react'
+import { Coins, Logo } from '../brand/Brand'
 import { useWallet } from '../context/WalletContext'
-import { useThemeSettings } from '../context/ThemeContext'
-import { isGamePath } from '../games'
+import { gameFromPath } from '../games'
+import { t } from '../i18n'
+import { formatCoins, formatNumber, formatTime } from '../i18n/format'
+import { useFavoriteGames } from '../lib/storage'
+import { FREE_CREDIT_OPTIONS, FREE_CREDITS_CEILING } from '../wallet/ledger'
+import SearchBox from './SearchBox'
 
-// Reusable Bitcoin icon component (matches btc-icon in game sidebars)
-const BtcIcon = ({ size = 20, fontSize = 12 }) => (
-    <div style={{
-        width: size,
-        height: size,
-        minWidth: size,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: '50%',
-        background: 'linear-gradient(135deg, #f7931a, #ffb347)',
-        color: '#fff',
-        fontWeight: 800,
-        fontSize: fontSize,
-        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
-        lineHeight: 1,
-    }}>₿</div>
-)
+const CASINO_PATHS = ['/cassino', '/favoritos', '/recentes']
 
-function Header({ menuOpen, menuButtonRef, onMenuClick }) {
-    const location = useLocation()
-    const { balance, addFreeCredits: deposit, resetBalance, history: transactions, toasts } = useWallet()
-    const { paletteId, palettes, setPaletteId } = useThemeSettings()
-    const [showWalletDropdown, setShowWalletDropdown] = useState(false)
-    const [depositAmount, setDepositAmount] = useState('')
-    const dropdownRef = useRef(null)
-
-    // Sports pages also bet with the fictional wallet, so they get the same header as the games.
-    const isGamePage = isGamePath(location.pathname) || location.pathname.startsWith('/sports')
-    const isHomePage = location.pathname === '/'
-
-    // Close dropdown when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setShowWalletDropdown(false)
-            }
-        }
-        document.addEventListener('mousedown', handleClickOutside)
-        return () => document.removeEventListener('mousedown', handleClickOutside)
-    }, [])
-
-    const handleDeposit = () => {
-        const amt = parseFloat(depositAmount)
-        if (!isNaN(amt) && amt > 0) {
-            deposit(amt)
-            setDepositAmount('')
-        }
+export function useFreeCredits() {
+    const { addFreeCredits, showToast } = useWallet()
+    return (amount) => {
+        if (addFreeCredits(amount)) showToast('win', t('wallet.addedTitle'), t('wallet.addedBody', { amount: formatNumber(amount) }))
+        else showToast('error', t('wallet.addFree'), t('wallet.ceilingReached', { limit: formatNumber(FREE_CREDITS_CEILING) }))
     }
+}
 
-    const formattedBalance = balance.toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    })
+function WalletMenu() {
+    const { balance, history } = useWallet()
+    const addFree = useFreeCredits()
+    const [open, setOpen] = useState(false)
+    const rootRef = useRef(null)
+
+    useEffect(() => {
+        if (!open) return undefined
+        const onPointer = (event) => !rootRef.current?.contains(event.target) && setOpen(false)
+        const onKey = (event) => event.key === 'Escape' && setOpen(false)
+        document.addEventListener('pointerdown', onPointer)
+        document.addEventListener('keydown', onKey)
+        return () => {
+            document.removeEventListener('pointerdown', onPointer)
+            document.removeEventListener('keydown', onKey)
+        }
+    }, [open])
 
     return (
-        <header className={`header ${isHomePage ? 'header-home' : ''}`}>
-            <div className="header-left">
-                <Link to="/" className="logo-link">
-                    <span className="logo" style={{ color: 'var(--text-primary)' }}>Stake</span>
-                </Link>
-            </div>
+        <div className="wallet-menu" ref={rootRef}>
+            <button
+                type="button"
+                className="wallet-menu__button"
+                aria-expanded={open}
+                aria-haspopup="dialog"
+                aria-label={t('wallet.openWallet', { amount: formatCoins(balance) })}
+                onClick={() => setOpen((value) => !value)}
+            >
+                <Coins value={balance} />
+            </button>
+            {open && (
+                <div className="wallet-menu__panel" role="dialog" aria-label={t('wallet.title')}>
+                    <p className="wallet-menu__label">{t('wallet.balance')}</p>
+                    <p className="wallet-menu__balance"><Coins value={balance} size={22} /></p>
+                    <p className="wallet-menu__note">{t('wallet.whatAreCoins')}</p>
+                    <p className="wallet-menu__label">{t('wallet.addFree')}</p>
+                    <div className="wallet-menu__chips">
+                        {FREE_CREDIT_OPTIONS.map((amount) => (
+                            <button key={amount} type="button" onClick={() => addFree(amount)}>{t('wallet.addAmount', { amount: formatNumber(amount) })}</button>
+                        ))}
+                    </div>
+                    {history.length > 0 && (
+                        <ul className="wallet-menu__history" aria-label={t('wallet.history')}>
+                            {history.slice(0, 4).map((entry) => (
+                                <li key={entry.id}>
+                                    <span>{t(`wallet.types.${entry.type}`)} · {t(`wallet.sources.${entry.source}`)}</span>
+                                    <span className={entry.type === 'bet' ? 'is-negative' : 'is-positive'}>
+                                        {entry.type === 'bet' ? '−' : '+'}{formatCoins(entry.amount)}
+                                    </span>
+                                    <time dateTime={entry.at}>{formatTime(entry.at)}</time>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                    <Link to="/carteira" className="wallet-menu__link" onClick={() => setOpen(false)}>{t('home.openWallet')}</Link>
+                </div>
+            )}
+        </div>
+    )
+}
 
-            <div className="header-center">
-                <div className="header-wallet">
+function Header({ menuOpen, menuButtonRef, onMenuClick }) {
+    const { pathname } = useLocation()
+    const game = gameFromPath(pathname)
+    const favorites = useFavoriteGames()
+    const isFavorite = game ? favorites.has(game.id) : false
+    const casinoActive = Boolean(game) || CASINO_PATHS.some((path) => pathname.startsWith(path))
+
+    return (
+        <header className="app-header">
+            <button
+                ref={menuButtonRef}
+                type="button"
+                className="icon-button app-header__menu"
+                aria-label={t('nav.openMenu')}
+                aria-haspopup="dialog"
+                aria-expanded={menuOpen}
+                onClick={onMenuClick}
+            >
+                <Menu size={20} aria-hidden="true" />
+            </button>
+            <Link to="/" className="app-header__logo" aria-label={`123bet, ${t('nav.home')}`}>
+                <Logo />
+            </Link>
+            <nav className="app-header__tabs" aria-label={t('nav.primary')}>
+                <Link to="/cassino" className={casinoActive ? 'is-active' : ''} aria-current={casinoActive ? 'page' : undefined}>{t('nav.casino')}</Link>
+                <NavLink to="/sports" className={({ isActive }) => (isActive ? 'is-active' : '')}>{t('nav.sports')}</NavLink>
+            </nav>
+            <div className="app-header__search">
+                <SearchBox />
+            </div>
+            <div className="app-header__actions">
+                {game ? (
                     <button
                         type="button"
-                        className="mobile-wallet-balance"
-                        aria-label={`Open wallet, balance ${formattedBalance}`}
-                        aria-expanded={showWalletDropdown}
-                        onClick={() => setShowWalletDropdown(!showWalletDropdown)}
+                        className={`icon-button${isFavorite ? ' is-on' : ''}`}
+                        aria-pressed={isFavorite}
+                        aria-label={`${isFavorite ? t('common.unfavorite') : t('common.favorite')}: ${game.navLabel}`}
+                        title={isFavorite ? t('common.unfavorite') : t('common.favorite')}
+                        onClick={() => favorites.toggle(game.id)}
                     >
-                        <BtcIcon size={18} fontSize={11} />
-                        <span>{formattedBalance}</span>
+                        <Star size={18} aria-hidden="true" fill={isFavorite ? 'currentColor' : 'none'} />
                     </button>
-                    {isGamePage && (
-                        <>
-                            <div className="wallet-balance-display">
-                            <BtcIcon size={18} fontSize={11} />
-                            <span className="wallet-balance-amount">{formattedBalance}</span>
-                            <button
-                                className="wallet-dropdown-toggle"
-                                onClick={() => setShowWalletDropdown(!showWalletDropdown)}
-                            >
-                                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                                    <path d="M7 10l5 5 5-5z" />
-                                </svg>
-                            </button>
-                            </div>
-                            <button className="wallet-btn" onClick={() => setShowWalletDropdown(!showWalletDropdown)}>
-                                Wallet
-                            </button>
-                        </>
-                    )}
-
-                    {/* Wallet Dropdown */}
-                        {showWalletDropdown && (
-                            <div className="wallet-dropdown" ref={dropdownRef}>
-                                <div className="wallet-dropdown-header">
-                                    <h4>Wallet</h4>
-                                    <button className="wallet-close-btn" onClick={() => setShowWalletDropdown(false)}>
-                                        ✕
-                                    </button>
-                                </div>
-
-                                <div className="wallet-balance-section">
-                                    <div className="wallet-balance-label">Total Balance</div>
-                                    <div className="wallet-balance-big">
-                                        <BtcIcon size={28} fontSize={16} />
-                                        {formattedBalance}
-                                    </div>
-                                </div>
-
-                                <div className="wallet-actions">
-                                    <div className="wallet-deposit-row">
-                                        <input
-                                            type="number"
-                                            value={depositAmount}
-                                            onChange={(e) => setDepositAmount(e.target.value)}
-                                            placeholder="Enter amount..."
-                                            className="wallet-deposit-input"
-                                            min="0"
-                                            step="0.01"
-                                        />
-                                        <button className="wallet-deposit-btn" onClick={handleDeposit}>
-                                            Deposit
-                                        </button>
-                                    </div>
-                                    <div className="wallet-quick-amounts">
-                                        {[100, 500, 1000, 5000].map(amt => (
-                                            <button key={amt} className="wallet-quick-btn" onClick={() => deposit(amt)}>
-                                                +₿{amt}
-                                            </button>
-                                        ))}
-                                    </div>
-                                    <button className="wallet-reset-btn" onClick={resetBalance}>
-                                        Reset to ₿1,000.00
-                                    </button>
-                                </div>
-
-                                {/* Recent Transactions */}
-                                <div className="wallet-transactions">
-                                    <h5>Recent Activity</h5>
-                                    {transactions.length === 0 ? (
-                                        <div className="wallet-no-tx">No transactions yet</div>
-                                    ) : (
-                                        <div className="wallet-tx-list">
-                                            {transactions.slice(0, 8).map(tx => (
-                                                <div key={tx.id} className={`wallet-tx-item ${tx.type}`}>
-                                                    <div className="wallet-tx-info">
-                                                        <span className="wallet-tx-type">
-                                                            {tx.type === 'bet' && '🎲 Bet'}
-                                                            {tx.type === 'win' && '🏆 Win'}
-                                                            {tx.type === 'refill' && '💰 Deposit'}
-                                                            {tx.type === 'reset' && '🔄 Reset'}
-                                                        </span>
-                                                        <span className="wallet-tx-time">
-                                                            {new Date(tx.at).toLocaleTimeString()}
-                                                        </span>
-                                                    </div>
-                                                    <span className={`wallet-tx-amount ${tx.type !== 'bet' ? 'positive' : 'negative'}`}>
-                                                        {tx.type !== 'bet' ? '+' : '-'}₿{Math.abs(tx.amount).toFixed(2)}
-                                                    </span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                    {/* Game Toasts — below wallet */}
-                    {isGamePage && toasts.length > 0 && (
-                        <div className="wallet-toast-container">
-                            {toasts.map(toast => (
-                                <div key={toast.id} className={`wallet-toast wallet-toast-${toast.type}`}>
-                                    <div className="wallet-toast-icon">
-                                        {toast.type === 'bet' && (
-                                            <BtcIcon size={20} fontSize={11} />
-                                        )}
-                                        {toast.type === 'win' && (
-                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--success)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                                <polyline points="20 6 9 17 4 12" />
-                                            </svg>
-                                        )}
-                                        {toast.type === 'loss' && (
-                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#ed4245" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                                <line x1="18" y1="6" x2="6" y2="18" />
-                                                <line x1="6" y1="6" x2="18" y2="18" />
-                                            </svg>
-                                        )}
-                                        {toast.type === 'error' && (
-                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#f7931a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                                <circle cx="12" cy="12" r="10" />
-                                                <line x1="12" y1="8" x2="12" y2="12" />
-                                                <line x1="12" y1="16" x2="12.01" y2="16" />
-                                            </svg>
-                                        )}
-                                    </div>
-                                    <div className="wallet-toast-content">
-                                        <span className="wallet-toast-title">{toast.title}</span>
-                                        <span className="wallet-toast-desc">{toast.description}</span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-                {!isGamePage && (
-                    <div className="search-input-wrapper">
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="var(--text-secondary)" className="search-icon"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path></svg>
-                        <input type="text" placeholder="Search your game" className="search-input" />
-                    </div>
-                )}
-            </div>
-
-            <div className="header-right">
-                <label className="palette-select-label">
-                    <span className="palette-select-text">Palette</span>
-                    <select
-                        className="palette-select"
-                        value={paletteId}
-                        onChange={(event) => setPaletteId(event.target.value)}
-                        aria-label="Color palette"
-                    >
-                        {palettes.map((palette) => (
-                            <option key={palette.id} value={palette.id}>{palette.name}</option>
-                        ))}
-                    </select>
-                </label>
-                {isGamePage ? (
-                    /* Icons when on game page */
-                    <>
-                        <button className="header-icon-btn" title="Search">
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path></svg>
-                        </button>
-                        <button className="header-icon-btn" title="Profile">
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path></svg>
-                        </button>
-                        <button className="header-icon-btn" title="Notifications">
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"></path></svg>
-                        </button>
-                        <button className="header-icon-btn" title="Chat">
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"></path></svg>
-                        </button>
-                    </>
                 ) : (
-                    <>
-                        <button className="btn btn-login">Sign In</button>
-                        <button className="btn btn-register">Register</button>
-                    </>
+                    <Link to="/favoritos" className="icon-button app-header__desktop" aria-label={t('nav.favorites')} title={t('nav.favorites')}>
+                        <Star size={18} aria-hidden="true" />
+                    </Link>
                 )}
-                <button
-                    ref={menuButtonRef}
-                    type="button"
-                    className="mobile-menu-button"
-                    aria-label="Open navigation menu"
-                    aria-haspopup="dialog"
-                    aria-expanded={menuOpen}
-                    onClick={onMenuClick}
-                >
-                    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
-                        <path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2z" />
-                    </svg>
-                </button>
+                <WalletMenu />
+                <span className="visitor-chip app-header__desktop" title={t('common.visitorHint')}>
+                    <UserRound size={16} aria-hidden="true" />
+                    {t('common.visitor')}
+                </span>
             </div>
         </header>
     )

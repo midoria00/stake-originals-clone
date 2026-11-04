@@ -10,43 +10,46 @@ async function sources(relativePaths) {
     return Promise.all(relativePaths.map(source))
 }
 
-test('mobile shell exposes drawer, compact header, and five-route bottom navigation', async () => {
-    const [app, layout, header, navigation, navigationCss, globalCss] = await sources([
+test('mobile shell exposes drawer, compact header, and five-item bottom navigation', async () => {
+    const [app, layout, header, navigation, navigationCss, layoutCss] = await sources([
         './src/App.jsx',
         './src/components/Layout.jsx',
         './src/components/Header.jsx',
         './src/components/MobileNavigation.jsx',
         './src/components/MobileNavigation.css',
-        './src/styles/index.css',
+        './src/styles/layout.css',
     ])
 
     assert.match(app, /role="status"/)
     assert.doesNotMatch(app, /fallback=\{null\}/)
     assert.match(layout, /<MobileNavigation/)
-    assert.match(header, /aria-label="Open navigation menu"/)
+    assert.match(layout, /<main id="main"/)
+    assert.match(header, /aria-label=\{t\('nav\.openMenu'\)\}/)
     assert.match(header, /ref=\{menuButtonRef\}/)
+    assert.match(header, /aria-expanded=\{menuOpen\}/)
     assert.match(navigation, /afterOpenChange=/)
-    assert.match(header, /className="mobile-wallet-balance"/)
-    assert.match(header, /aria-expanded=\{showWalletDropdown\}/)
-    assert.match(header, /setShowWalletDropdown\(!showWalletDropdown\)/)
-    assert.match(header, /!isGamePage &&/)
-    assert.equal((header.match(/className="wallet-dropdown"/g) || []).length, 1)
-    assert.match(navigation, /aria-label="Primary navigation"/)
+    // One wallet control in the header, with a single disclosure panel.
+    assert.equal((header.match(/className="wallet-menu__panel"/g) || []).length, 1)
+    assert.match(header, /aria-expanded=\{open\}/)
+    // Início, Cassino, Esportes, Bilhete (opens the slip) and Carteira.
+    assert.match(navigation, /aria-label=\{t\('nav\.primary'\)\}/)
     assert.match(navigation, /const primaryRoutes = \[/)
-    assert.match(navigation, /path: '\/'/)
-    assert.match(navigation, /\.\.\.GAMES\.map/)
-    assert.match(navigation, /Coming soon/)
+    for (const route of ["path: '/'", "path: '/cassino'", "path: '/sports'"]) assert.ok(navigation.includes(route), route)
+    assert.match(navigation, /onClick=\{onOpenSlip\}/)
+    assert.match(navigation, /to="\/carteira"/)
+    assert.match(navigationCss, /repeat\(5,/)
     assert.match(navigationCss, /safe-area-inset-bottom/)
-    assert.match(globalCss, /height:\s*100dvh/)
-    assert.match(globalCss, /padding-bottom:\s*var\(--mobile-nav-space\)/)
+    assert.match(layoutCss, /height:\s*100dvh/)
+    assert.match(layoutCss, /padding-bottom:\s*var\(--mobile-nav-space\)/)
 })
 
-test('Home uses compact mobile hero, category rail, and adaptive card grid', async () => {
-    const css = await source('./src/styles/home.css')
-    assert.match(css, /\.game-category-list\s*\{[^}]*overflow-x:\s*auto/s)
-    assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*grid-template-columns:\s*repeat\(2,/)
-    assert.match(css, /@media\s*\(max-width:\s*359px\)[\s\S]*grid-template-columns:\s*1fr/)
-    assert.match(css, /touch-action:\s*pan-x/)
+test('Home uses a fluid hero and adaptive game grid', async () => {
+    const [home, cards] = await sources(['./src/styles/home.css', './src/components/GameCard.css'])
+    assert.match(home, /\.home-hero h1\s*\{[^}]*font-size:\s*clamp\(/s)
+    assert.match(home, /@media\s*\(max-width:\s*768px\)/)
+    assert.match(cards, /\.game-grid\s*\{[^}]*repeat\(auto-fill,\s*minmax\(/s)
+    assert.match(cards, /@media\s*\(max-width:\s*480px\)[\s\S]*grid-template-columns:\s*repeat\(2,/)
+    assert.match(cards, /prefers-reduced-motion/)
 })
 
 test('Mines keeps the square board ahead of a collapsible betting sheet', async () => {

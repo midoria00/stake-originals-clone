@@ -1,5 +1,5 @@
 // Minimal i18n: one dictionary per locale, split by namespace (src/i18n/pt-BR/*.js).
-// t('wallet.balance') or t('sports.betsCount', { count: 3 }). To add English later, create
+// t('wallet.balance') or t('pages.casino.count', { count: 3 }). To add English later, create
 // src/i18n/en/ with the same namespaces and register it below; missing keys fall back to pt-BR.
 import ptBR from './pt-BR/index.js'
 
@@ -40,4 +40,9 @@ export function t(key, params) {
     if (typeof value !== 'string') return key
     if (!params) return value
     return value.replace(/\{(\w+)\}/g, (match, name) => (params[name] ?? match))
+}
+
+// Structured entries (FAQ items, rule lists) that pages render in bulk. Same fallback as t().
+export function tRaw(key) {
+    return lookup(DICTIONARIES[locale], key) ?? lookup(ptBR, key)
 }

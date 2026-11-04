@@ -12,5 +12,6 @@ import mines from './mines.js'
 import dino from './dino.js'
 import dice from './dice.js'
 import limbo from './limbo.js'
+import settings from './settings.js'
 
-export default { common, nav, wallet, home, pages, sports, games, crash, plinko, mines, dino, dice, limbo }
+export default { common, nav, wallet, home, pages, settings, sports, games, crash, plinko, mines, dino, dice, limbo }

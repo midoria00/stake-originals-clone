@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useWallet } from '../context/WalletContext'
 import { MAX_STAKE, MIN_STAKE, stakeValue, useBetSlip } from './BetSlipContext'
 import { kickoffDateTime, money, oddText, RESULT_LABELS } from './format'
+import './sports.css'
 
 function StakeInput({ id, value, onChange, label }) {
     return (
@@ -96,11 +97,13 @@ function Slip() {
     )
 }
 
-function MyBets() {
+// status: 'open' | 'settled' | undefined (all, open first). Also used by the "Minhas apostas" page.
+export function BetList({ status, emptyText = 'Você ainda não fez apostas esportivas.' }) {
     const { bets } = useBetSlip()
-    if (!bets.length) return <div className="sp-slip__empty"><p>Você ainda não fez apostas esportivas.</p></div>
+    const filtered = status ? bets.filter((bet) => (bet.status === 'pending') === (status === 'open')) : bets
+    if (!filtered.length) return <div className="sp-slip__empty"><p>{emptyText}</p></div>
     // Open bets first; the stored order (newest first) is kept inside each group.
-    const ordered = [...bets].sort((a, b) => (b.status === 'pending') - (a.status === 'pending'))
+    const ordered = [...filtered].sort((a, b) => (b.status === 'pending') - (a.status === 'pending'))
     return (
         <ul className="sp-bets">
             {ordered.map((bet) => (
@@ -144,7 +147,7 @@ export default function BetSlip() {
                     Minhas apostas {open > 0 && <span className="sp-count">{open}</span>}
                 </button>
             </div>
-            {tab === 'slip' ? <Slip /> : <MyBets />}
+            {tab === 'slip' ? <Slip /> : <BetList />}
             <p className="sp-slip__disclaimer">Apostas simuladas com créditos fictícios. Não há depósitos, saques nem dinheiro real.</p>
         </section>
     )

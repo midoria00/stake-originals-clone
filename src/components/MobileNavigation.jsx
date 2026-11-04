@@ -1,76 +1,73 @@
 import { useEffect } from 'react'
 import { Drawer } from 'antd'
-import { NavLink, useLocation } from 'react-router-dom'
-import { GAMES } from '../games'
-import { useThemeSettings } from '../context/ThemeContext'
+import { Link, NavLink, useLocation } from 'react-router-dom'
+import { Dices, House, Ticket, UserRound, Wallet } from 'lucide-react'
+import { Logo } from '../brand/Brand'
+import { gameFromPath } from '../games'
+import { t } from '../i18n'
+import { useBetSlip } from '../sports/BetSlipContext'
+import { FootballIcon } from './icons'
+import NavMenu from './NavMenu'
+import SearchBox from './SearchBox'
 import './MobileNavigation.css'
 
+// Bottom bar on phones: Início, Cassino, Esportes, Bilhete (opens the slip), Carteira.
 const primaryRoutes = [
-    { path: '/', label: 'Home', icon: '⌂' },
-    { path: '/sports', label: 'Esportes', icon: '⚽' },
-    ...GAMES.map(game => ({ path: game.path, label: game.name, icon: '◆' })),
+    { path: '/', key: 'nav.home', Icon: House, end: true },
+    { path: '/cassino', key: 'nav.casino', Icon: Dices },
+    { path: '/sports', key: 'nav.sports', Icon: FootballIcon },
 ]
 
-const comingSoon = ['Favourites', 'Recent', 'Challenges', 'My Bets']
-
-function MobileNavigation({ drawerOpen, onClose, returnFocusRef }) {
+function MobileNavigation({ drawerOpen, onClose, returnFocusRef, onOpenSlip }) {
     const location = useLocation()
-    const { paletteId, palettes, setPaletteId } = useThemeSettings()
+    const { selections } = useBetSlip()
+    const inCasino = Boolean(gameFromPath(location.pathname)) || ['/favoritos', '/recentes'].includes(location.pathname)
 
-    useEffect(() => onClose(), [location.pathname, onClose])
+    useEffect(() => onClose(), [location.pathname, location.search, onClose])
 
     return (
         <>
             <Drawer
-                title="Menu"
+                title={<Logo />}
                 placement="left"
-                width="min(88vw, 360px)"
+                width="min(86vw, 340px)"
                 open={drawerOpen}
                 onClose={onClose}
-                afterOpenChange={open => {
+                afterOpenChange={(open) => {
                     if (!open) returnFocusRef.current?.focus()
                 }}
                 rootClassName="mobile-navigation-drawer"
+                closeIcon={<span aria-label={t('nav.closeMenu')}>✕</span>}
             >
-                <label className="mobile-drawer-field">
-                    <span>Search</span>
-                    <input type="search" placeholder="Search your game" />
-                </label>
-                <label className="mobile-drawer-field">
-                    <span>Palette</span>
-                    <select value={paletteId} onChange={event => setPaletteId(event.target.value)}>
-                        {palettes.map(palette => (
-                            <option key={palette.id} value={palette.id}>{palette.name}</option>
-                        ))}
-                    </select>
-                </label>
-                <div className="mobile-drawer-actions" aria-label="Account shortcuts">
-                    {['Profile', 'Notifications', 'Chat'].map(label => (
-                        <button key={label} type="button">{label}</button>
-                    ))}
-                </div>
-                <div className="mobile-coming-soon" aria-label="Coming soon">
-                    {comingSoon.map(label => (
-                        <button key={label} type="button" disabled>
-                            <span>{label}</span>
-                            <small>Coming soon</small>
-                        </button>
-                    ))}
-                </div>
+                <SearchBox onDone={onClose} />
+                <p className="mobile-drawer__visitor">
+                    <UserRound size={16} aria-hidden="true" />
+                    {t('common.visitorHint')}
+                </p>
+                <NavMenu onNavigate={onClose} />
             </Drawer>
 
-            <nav className="mobile-bottom-nav" aria-label="Primary navigation">
-                {primaryRoutes.map(route => (
+            <nav className="mobile-bottom-nav" aria-label={t('nav.primary')}>
+                {primaryRoutes.map(({ path, key, Icon, end }) => (
                     <NavLink
-                        key={route.path}
-                        to={route.path}
-                        end={route.path === '/'}
-                        className={({ isActive }) => isActive ? 'active' : ''}
+                        key={path}
+                        to={path}
+                        end={end}
+                        className={({ isActive }) => (isActive || (path === '/cassino' && inCasino) ? 'active' : '')}
                     >
-                        <span aria-hidden="true">{route.icon}</span>
-                        <span>{route.label}</span>
+                        <Icon size={20} aria-hidden="true" />
+                        <span>{t(key)}</span>
                     </NavLink>
                 ))}
+                <button type="button" onClick={onOpenSlip} aria-haspopup="dialog">
+                    <Ticket size={20} aria-hidden="true" />
+                    <span>{t('nav.betSlip')}</span>
+                    {selections.length > 0 && <span className="mobile-bottom-nav__badge">{selections.length}</span>}
+                </button>
+                <Link to="/carteira" className={location.pathname === '/carteira' ? 'active' : ''}>
+                    <Wallet size={20} aria-hidden="true" />
+                    <span>{t('nav.wallet')}</span>
+                </Link>
             </nav>
         </>
     )

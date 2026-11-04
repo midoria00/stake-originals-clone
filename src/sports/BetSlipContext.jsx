@@ -228,10 +228,17 @@ export function BetSlipProvider({ children }) {
         }
     }, [])
 
+    // Only settled bets can be removed: open ones still hold a stake waiting for the result.
+    const clearSettled = useCallback(() => withLock(() => {
+        const next = read(BETS_KEY, []).filter((bet) => bet.status === 'pending')
+        write(BETS_KEY, next)
+        setBets(next)
+    }), [])
+
     const value = useMemo(() => ({
         selections, mode, setMode, stakes, setStakes, bets, placing, message,
-        toggle, remove, clear, isSelected, place, totalOdd, totalStake, potentialReturn,
-    }), [selections, mode, stakes, bets, placing, message, toggle, remove, clear, isSelected, place, totalOdd, totalStake, potentialReturn])
+        toggle, remove, clear, clearSettled, isSelected, place, totalOdd, totalStake, potentialReturn,
+    }), [selections, mode, stakes, bets, placing, message, toggle, remove, clear, clearSettled, isSelected, place, totalOdd, totalStake, potentialReturn])
 
     return <BetSlipContext.Provider value={value}>{children}</BetSlipContext.Provider>
 }

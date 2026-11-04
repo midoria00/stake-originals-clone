@@ -1,37 +1,88 @@
-import { useCallback, useRef, useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Drawer } from 'antd'
+import { Outlet, useLocation } from 'react-router-dom'
+import { gameFromPath } from '../games'
+import { t } from '../i18n'
+import { recordRecentGame, useStoredState } from '../lib/storage'
+import { BetSlipProvider } from '../sports/BetSlipContext'
+import { MigrationNotice, PageSkeleton, RouteErrorBoundary, Toasts } from './AppFrame'
 import Header from './Header'
-import Sidebar from './Sidebar'
 import MobileNavigation from './MobileNavigation'
+import Sidebar from './Sidebar'
+import '../styles/layout.css'
+
+// The slip UI (and the sports stylesheet) loads only when the mobile slip is opened.
+const BetSlip = lazy(() => import('../sports/BetSlip'))
+
+const PAGE_TITLES = {
+    '/cassino': 'nav.casino',
+    '/sports': 'nav.sports',
+    '/favoritos': 'nav.favorites',
+    '/recentes': 'nav.recent',
+    '/minhas-apostas': 'nav.myBets',
+    '/carteira': 'nav.wallet',
+    '/configuracoes': 'nav.settings',
+    '/ajuda': 'nav.help',
+    '/como-funciona': 'nav.howGamesWork',
+    '/verificar': 'nav.verify',
+    '/sobre': 'nav.about',
+    '/privacidade': 'nav.privacy',
+}
+
+const isBoolean = (value) => typeof value === 'boolean'
+
+function useRouteEffects(pathname) {
+    useEffect(() => {
+        const game = gameFromPath(pathname)
+        if (game) recordRecentGame(game.id)
+        const key = Object.keys(PAGE_TITLES).find((path) => pathname.startsWith(path))
+        const label = game?.navLabel ?? (key ? t(PAGE_TITLES[key]) : null)
+        document.title = label ? `${label} | 123bet` : '123bet | Cassino e esportes em modo simulação'
+    }, [pathname])
+}
 
 function Layout() {
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true)
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-    const mobileMenuButtonRef = useRef(null)
-    const closeMobileMenu = useCallback(() => setIsMobileMenuOpen(false), [])
+    const { pathname } = useLocation()
+    const [collapsed, setCollapsed] = useStoredState('123bet_sidebar_collapsed_v1', false, isBoolean)
+    const [menuOpen, setMenuOpen] = useState(false)
+    const [slipOpen, setSlipOpen] = useState(false)
+    const menuButtonRef = useRef(null)
+    const closeMenu = useCallback(() => setMenuOpen(false), [])
+    useRouteEffects(pathname)
 
     return (
-        <div className="app-layout">
-            <Sidebar
-                isOpen={isSidebarOpen}
-                toggleSidebar={() => setIsSidebarOpen(value => !value)}
-            />
-            <div className="app-main-wrapper">
-                <Header
-                    menuOpen={isMobileMenuOpen}
-                    menuButtonRef={mobileMenuButtonRef}
-                    onMenuClick={() => setIsMobileMenuOpen(true)}
-                />
-                <main className="main-content">
-                    <Outlet />
-                </main>
+        <BetSlipProvider>
+            <a className="skip-link" href="#main">{t('nav.skipToContent')}</a>
+            <div className={`app-layout${collapsed ? ' is-sidebar-collapsed' : ''}`}>
+                <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((value) => !value)} />
+                <div className="app-main-wrapper">
+                    <Header menuOpen={menuOpen} menuButtonRef={menuButtonRef} onMenuClick={() => setMenuOpen(true)} />
+                    <MigrationNotice />
+                    <main id="main" className="main-content" tabIndex={-1}>
+                        <RouteErrorBoundary key={pathname}>
+                            <Suspense fallback={<PageSkeleton />}>
+                                <Outlet />
+                            </Suspense>
+                        </RouteErrorBoundary>
+                    </main>
+                </div>
+                <MobileNavigation drawerOpen={menuOpen} onClose={closeMenu} returnFocusRef={menuButtonRef} onOpenSlip={() => setSlipOpen(true)} />
+                <Drawer
+                    title={t('nav.betSlip')}
+                    placement="bottom"
+                    height="85dvh"
+                    open={slipOpen}
+                    onClose={() => setSlipOpen(false)}
+                    rootClassName="slip-drawer"
+                    destroyOnClose
+                >
+                    <Suspense fallback={<p className="route-loading" role="status">{t('common.loading')}</p>}>
+                        <BetSlip />
+                    </Suspense>
+                </Drawer>
+                <Toasts />
             </div>
-            <MobileNavigation
-                drawerOpen={isMobileMenuOpen}
-                onClose={closeMobileMenu}
-                returnFocusRef={mobileMenuButtonRef}
-            />
-        </div>
+        </BetSlipProvider>
     )
 }
 
