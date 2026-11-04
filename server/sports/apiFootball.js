@@ -13,6 +13,9 @@ const BOOKMAKER_PRIORITY = [8, 4, 11, 6, 16]
 const MATCH_WINNER_BET = 1
 const IDS_PER_CALL = 20
 const LOW_QUOTA = 150
+const RESERVED_FOR_LISTS = 100
+// API-Football Pro allows 300 requests/minute (docs/sports-data-providers.md).
+const UPSTREAM_PER_MINUTE = 120
 
 export class ProviderError extends Error {
     constructor(message, { status = 502, quota = false } = {}) {
@@ -132,9 +135,23 @@ function liveMarkets(item) {
     return normalizeBets(bets, 'API-Football (ao vivo)')
 }
 
-export function createApiFootballProvider({ key, fetchImpl = fetch }) {
+export function createApiFootballProvider({ key, fetchImpl = fetch, upstreamPerMinute = UPSTREAM_PER_MINUTE }) {
     const quota = { day: null, minute: null }
     const quotaLow = () => quota.day !== null && quota.day < LOW_QUOTA
+    let window = { start: 0, count: 0 }
+
+    // Ids come from visitors, so lookups by id can always miss the cache. Cap upstream calls per
+    // instance (exceeding the provider's per-minute limit can get the key blocked) and keep the
+    // last part of the daily quota for the shared list views.
+    function admit(params) {
+        const now = Date.now()
+        if (now - window.start >= 60_000) window = { start: now, count: 0 }
+        if (window.count >= upstreamPerMinute) return false
+        const byId = 'id' in params || 'ids' in params || 'fixture' in params
+        if (byId && quota.day !== null && quota.day < RESERVED_FOR_LISTS) return false
+        window.count += 1
+        return true
+    }
 
     function call(path, params, ttlMs) {
         const url = new URL(path, BASE_URL)
@@ -143,6 +160,7 @@ export function createApiFootballProvider({ key, fetchImpl = fetch }) {
         }
         // Stretch every TTL when the daily quota is nearly gone, instead of failing outright.
         return memo(`af:${url.pathname}${url.search}`, ttlMs * (quotaLow() ? 4 : 1), async () => {
+            if (!admit(params)) throw new ProviderError('Consultas ao fornecedor temporariamente limitadas', { status: 503, quota: true })
             let response
             try {
                 response = await fetchImpl(url, { headers: { 'x-apisports-key': key, accept: 'application/json' } })

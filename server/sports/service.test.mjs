@@ -133,6 +133,34 @@ test('provider quota errors become a 503 without leaking provider details', asyn
     assert.equal(body.error, 'Limite de requisições do fornecedor atingido')
 })
 
+test('lookups by id cannot drain the provider quota', async () => {
+    clearCache()
+    const { calls, fetchImpl } = fakeApi([['/fixtures', { errors: [], response: [fixture(4004, 'FT', { home: 1, away: 0 })] }]])
+    const service = createSportsService({ env: { API_FOOTBALL_KEY: KEY }, fetchImpl, now: () => NOW })
+    const results = await Promise.allSettled(Array.from({ length: 125 }, (_, i) => service.match(query({ id: String(5000 + i) }))))
+    assert.equal(results.filter((r) => r.status === 'fulfilled').length, 120, 'per-minute cap per instance')
+    assert.match(results.at(-1).reason.message, /limitadas/)
+    assert.equal(calls.length, 120)
+
+    clearCache()
+    const low = fakeApi([['/fixtures', { errors: [], response: [fixture(4005, 'FT', { home: 1, away: 0 })] }, 200, { 'x-ratelimit-requests-remaining': '50' }]])
+    const lowService = createSportsService({ env: { API_FOOTBALL_KEY: KEY }, fetchImpl: low.fetchImpl, now: () => NOW })
+    await lowService.match(query({ id: '6001' }))
+    await assert.rejects(lowService.match(query({ id: '6002' })), /limitadas/)
+    assert.equal((await lowService.matches(query({ view: 'live' }))).view, 'live', 'shared lists keep the reserved quota')
+})
+
+test('each visitor is rate limited per minute', async () => {
+    const service = createSportsService({ env: {}, now: () => NOW })
+    const visit = () => handle(new Request('http://localhost/api/sports/matches?view=live', { headers: { 'x-real-ip': '203.0.113.9' } }), 'matches', service)
+    for (let i = 0; i < 60; i++) assert.equal((await visit()).status, 200)
+    const blocked = await visit()
+    assert.equal(blocked.status, 429)
+    assert.equal(blocked.headers.get('retry-after'), '60')
+    const other = await handle(new Request('http://localhost/api/sports/matches?view=live', { headers: { 'x-real-ip': '198.51.100.7' } }), 'matches', service)
+    assert.equal(other.status, 200)
+})
+
 test('a burst of identical requests reaches the provider once', async () => {
     clearCache()
     const { calls, fetchImpl } = fakeApi([['/fixtures?date=', { errors: [], response: [fixture(3003, 'FT', { home: 0, away: 0 })] }]])
