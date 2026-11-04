@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import {
     InputNumber,
     Button,
-    Typography,
-    Card,
+    Typography,
     Switch,
     Tooltip,
     Slider
@@ -18,7 +17,6 @@ import { t } from '../../i18n'
 const { Text } = Typography
 
 function BettingPanel({ phase, betPlaced, multiplier, onBet, onCashout }) {
-    const [activeTab, setActiveTab] = useState('manual')
     const [betAmount, setBetAmount] = useState(1)
     const [cashoutAt, setCashoutAt] = useState(2.00)
     const [autoCashout, setAutoCashout] = useState(true)
@@ -62,24 +60,8 @@ function BettingPanel({ phase, betPlaced, multiplier, onBet, onCashout }) {
 
     return (
         <div className="betting-panel-3d">
-            {/* 3D Tabs */}
-            <div className="bet-mode-tabs">
-                <button
-                    className={`bet-mode-tab ${activeTab === 'manual' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('manual')}
-                >
-                    {t('games.manual')}
-                </button>
-                <button
-                    className={`bet-mode-tab ${activeTab === 'auto' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('auto')}
-                >
-                    {t('games.auto')}
-                </button>
-            </div>
-
-            {activeTab === 'manual' ? (
-                <div className="bet-form">
+            {/* Only manual betting exists; the auto-bet tab was a placeholder and was removed. */}
+            <div className="bet-form">
                     {/* Bet Amount */}
                     <div className="form-group">
                         <div className="form-header">
@@ -156,16 +138,7 @@ function BettingPanel({ phase, betPlaced, multiplier, onBet, onCashout }) {
                         <ThunderboltOutlined style={{ marginRight: 6 }} />
                         {getButtonText()}
                     </button>
-                </div>
-            ) : (
-                <div className="bet-form">
-                    <Card size="small" style={{ background: 'var(--bg-input)', borderColor: 'var(--border-color)', borderRadius: 10 }}>
-                        <Text type="secondary">
-                            {t('crash.autoSoon')}
-                        </Text>
-                    </Card>
-                </div>
-            )}
+            </div>
         </div>
     )
 }

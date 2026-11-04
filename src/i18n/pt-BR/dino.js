@@ -1,7 +1,5 @@
 export default {
     betControls: 'Controles de aposta do Dino',
-    modeManual: 'Manual',
-    modeAuto: 'Auto',
     betAmount: 'Valor da aposta',
     half: 'Metade do valor',
     double: 'Dobrar o valor',

@@ -81,9 +81,6 @@ function GameHistory({ history }) {
                                         {formatMultiplier(item)}
                                     </Tag>
                                 </Space>
-                                <Text type="secondary" style={{ fontSize: 12 }}>
-                                    {index === 0 ? t('crash.justNow') : t('crash.secondsAgo', { n: index * 15 })}
-                                </Text>
                             </List.Item>
                         )
                     }}

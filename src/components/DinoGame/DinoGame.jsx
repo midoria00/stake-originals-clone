@@ -629,12 +629,6 @@ function DinoGame() {
                         collapseOn={gamePhase === 'running' || gamePhase === 'waiting'}
                     >
                         <div className="dino-sidebar">
-                        {/* Bet Mode Tabs */}
-                        <div className="bet-mode-tabs">
-                            <button className="bet-mode-tab active">{t('dino.modeManual')}</button>
-                            <button className="bet-mode-tab" disabled>{t('dino.modeAuto')}</button>
-                        </div>
-
                         {/* Bet Amount */}
                         <div className="form-group">
                             <div className="form-header">

@@ -71,11 +71,8 @@ function CrashGame() {
     const [countdown, setCountdown] = useState(5)
     const [crashPoint, setCrashPoint] = useState(0)
     const [elapsedTime, setElapsedTime] = useState(0)
-    const [history, setHistory] = useState([
-        3.21, 1.47, 2.89, 5.84, 169.00, 1.06, 9.47, 5.75, 1.43, 1.22,
-        4.77, 1.31, 2.15, 8.34, 1.89, 3.67, 12.45, 1.02, 6.23, 1.78,
-        2.44, 4.12, 1.56, 7.89, 2.33
-    ])
+    // Only rounds played in this session; the inherited version started with invented results.
+    const [history, setHistory] = useState([])
     const [betPlaced, setBetPlaced] = useState(false)
     const [betAmount, setBetAmount] = useState(0)
     const [userBetData, setUserBetData] = useState(null)
@@ -162,8 +159,8 @@ function CrashGame() {
     // Calculate statistics
     const stats = {
         totalGames: history.length,
-        avgMultiplier: (history.reduce((a, b) => a + b, 0) / history.length).toFixed(2),
-        maxMultiplier: Math.max(...history).toFixed(2),
+        avgMultiplier: history.length ? (history.reduce((a, b) => a + b, 0) / history.length).toFixed(2) : '0.00',
+        maxMultiplier: history.length ? Math.max(...history).toFixed(2) : '0.00',
         under2x: history.filter(x => x < 2).length,
         over2x: history.filter(x => x >= 2 && x < 10).length,
         over10x: history.filter(x => x >= 10).length,

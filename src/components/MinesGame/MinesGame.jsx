@@ -59,7 +59,6 @@ function MinesGame() {
     const [mineLocations, setMineLocations] = useState([]);
     const [gameOverState, setGameOverState] = useState(null) // 'win', 'loss', or null
     const [isHovering, setIsHovering] = useState(null);
-    const [autoTab, setAutoTab] = useState('manual');
     const [fairnessModalOpen, setFairnessModalOpen] = useState(false);
 
     // Bottom Controls State
@@ -529,22 +528,6 @@ function MinesGame() {
                     <div className="mines-sidebar">
                     <div className="mines-sidebar-content">
                         <div className="mines-bet-panel">
-                            {/* Bet Mode Tabs */}
-                            <div className="bet-mode-tabs mobile-sheet-secondary">
-                                <button
-                                    className={`bet-mode-tab ${autoTab === 'manual' ? 'active' : ''}`}
-                                    onClick={() => setAutoTab('manual')}
-                                >
-                                    {t('games.manual')}
-                                </button>
-                                <button
-                                    className={`bet-mode-tab ${autoTab === 'auto' ? 'active' : ''}`}
-                                    onClick={() => setAutoTab('auto')}
-                                >
-                                    {t('games.auto')}
-                                </button>
-                            </div>
-
                             {/* Bet Amount */}
                             <div className="form-group">
                                 <div className="form-header">

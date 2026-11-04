@@ -1,6 +1,5 @@
 import { useRef, useEffect, useMemo, useCallback } from 'react'
-import { Tag, Typography, Badge } from 'antd'
-import { WifiOutlined } from '@ant-design/icons'
+import { Tag, Typography } from 'antd'
 import { t } from '../../i18n'
 import { formatMultiplier, formatNumber } from '../../i18n/format'
 
@@ -360,12 +359,6 @@ function GameChart({ phase, multiplier, elapsedTime, countdown }) {
                 </div>
             )}
 
-            {/* Network Status */}
-            <div className="network-indicator">
-                <Badge status="success" />
-                <WifiOutlined style={{ color: 'var(--success)', marginRight: 4 }} />
-                <Text type="secondary" style={{ fontSize: 11 }}>{t('crash.connected')}</Text>
-            </div>
         </div>
     )
 }
