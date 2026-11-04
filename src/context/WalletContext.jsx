@@ -1,137 +1,100 @@
-import { createContext, useContext, useState, useCallback, useRef } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { applyEntry, canAddFreeCredits, canPlace, loadWallet, round2, saveBalance, saveLedger } from '../wallet/ledger'
 
 const WalletContext = createContext(null)
 
-const INITIAL_BALANCE = 1000.00
-const STORAGE_KEY = 'stake_wallet_balance'
-
-function getStoredBalance() {
+// Accessing localStorage can itself throw (blocked storage); fall back to memory for the session.
+function getStorage() {
     try {
-        const stored = localStorage.getItem(STORAGE_KEY)
-        if (stored !== null) {
-            const parsed = parseFloat(stored)
-            return isNaN(parsed) ? INITIAL_BALANCE : parsed
-        }
-    } catch (e) { /* ignore */ }
-    return INITIAL_BALANCE
+        return window.localStorage
+    } catch {
+        const memory = new Map()
+        return { getItem: (k) => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, String(v)), removeItem: (k) => memory.delete(k) }
+    }
 }
 
 export function WalletProvider({ children }) {
-    const [balance, setBalance] = useState(getStoredBalance)
-    const balanceRef = useRef(balance)
-    const [currency, setCurrency] = useState('USD')
-    const [transactions, setTransactions] = useState([])
+    const storage = useMemo(getStorage, [])
+    const stateRef = useRef(null)
+    if (!stateRef.current) stateRef.current = loadWallet(storage)
+    const [wallet, setWallet] = useState(stateRef.current)
+    const ledgerTimer = useRef(null)
 
-    // Toast system
+    // Games read the balance synchronously right after a bet, so the ref is the source of truth.
+    const commit = useCallback((next) => {
+        stateRef.current = next
+        setWallet(next)
+        saveBalance(storage, next.balance)
+        clearTimeout(ledgerTimer.current)
+        ledgerTimer.current = setTimeout(() => saveLedger(storage, stateRef.current), 250)
+    }, [storage])
+
+    useEffect(() => {
+        const flush = () => {
+            clearTimeout(ledgerTimer.current)
+            saveLedger(storage, stateRef.current)
+        }
+        if (stateRef.current.migratedFrom !== null) flush()
+        window.addEventListener('pagehide', flush)
+        return () => {
+            window.removeEventListener('pagehide', flush)
+            flush()
+        }
+    }, [storage])
+
+    const placeBet = useCallback((amount, source = 'casino') => {
+        const value = round2(Number(amount))
+        if (!canPlace(stateRef.current, value)) return false
+        commit(applyEntry(stateRef.current, 'bet', value, source))
+        return true
+    }, [commit])
+
+    const addWinnings = useCallback((amount, source = 'casino') => {
+        const value = round2(Number(amount))
+        if (!Number.isFinite(value) || value <= 0) return
+        commit(applyEntry(stateRef.current, 'win', value, source))
+    }, [commit])
+
+    const addFreeCredits = useCallback((amount) => {
+        const value = Number(amount)
+        if (!canAddFreeCredits(stateRef.current, value)) return false
+        commit(applyEntry(stateRef.current, 'refill', value, 'wallet'))
+        return true
+    }, [commit])
+
+    const resetBalance = useCallback(() => commit(applyEntry(stateRef.current, 'reset', 0, 'wallet')), [commit])
+
+    const dismissMigrationNotice = useCallback(() => commit({ ...stateRef.current, migrationSeen: true }), [commit])
+
     const [toasts, setToasts] = useState([])
     const toastIdRef = useRef(0)
-
     const showToast = useCallback((type, title, description, duration = 3000) => {
         const id = ++toastIdRef.current
-        setToasts(prev => [...prev, { id, type, title, description }])
-        setTimeout(() => {
-            setToasts(prev => prev.filter(t => t.id !== id))
-        }, duration)
+        setToasts((previous) => [...previous.slice(-3), { id, type, title, description }])
+        setTimeout(() => setToasts((previous) => previous.filter((toast) => toast.id !== id)), duration)
     }, [])
 
-    const setStoredBalance = useCallback((nextBalance) => {
-        const rounded = parseFloat(nextBalance.toFixed(2))
-        balanceRef.current = rounded
-        setBalance(rounded)
-        try { localStorage.setItem(STORAGE_KEY, rounded.toString()) } catch (e) { /* ignore */ }
-        return rounded
-    }, [])
-
-    // Update balance and persist to localStorage
-    const updateBalance = useCallback((newBalance) => {
-        setStoredBalance(newBalance)
-    }, [setStoredBalance])
-
-    // Place a bet (deduct from balance)
-    const placeBet = useCallback((amount) => {
-        const amt = parseFloat(amount)
-        if (isNaN(amt) || amt <= 0 || amt > balanceRef.current) return false
-
-        const newBal = setStoredBalance(balanceRef.current - amt)
-        setTransactions(txs => [{
-            id: Date.now(),
-            type: 'bet',
-            amount: -amt,
-            balance: newBal,
-            timestamp: new Date(),
-        }, ...txs].slice(0, 100))
-
-        return true
-    }, [setStoredBalance])
-
-    // Add winnings to balance
-    const addWinnings = useCallback((amount) => {
-        const amt = parseFloat(amount)
-        if (isNaN(amt) || amt <= 0) return
-
-        const newBal = setStoredBalance(balanceRef.current + amt)
-        setTransactions(txs => [{
-            id: Date.now(),
-            type: 'win',
-            amount: amt,
-            balance: newBal,
-            timestamp: new Date(),
-        }, ...txs].slice(0, 100))
-    }, [setStoredBalance])
-
-    // Deposit funds
-    const deposit = useCallback((amount) => {
-        const amt = parseFloat(amount)
-        if (isNaN(amt) || amt <= 0) return
-
-        const newBal = setStoredBalance(balanceRef.current + amt)
-        setTransactions(txs => [{
-            id: Date.now(),
-            type: 'deposit',
-            amount: amt,
-            balance: newBal,
-            timestamp: new Date(),
-        }, ...txs].slice(0, 100))
-    }, [setStoredBalance])
-
-    // Reset balance to initial
-    const resetBalance = useCallback(() => {
-        updateBalance(INITIAL_BALANCE)
-        setTransactions([{
-            id: Date.now(),
-            type: 'reset',
-            amount: INITIAL_BALANCE,
-            balance: INITIAL_BALANCE,
-            timestamp: new Date(),
-        }])
-    }, [updateBalance])
-
-    const value = {
-        balance,
-        currency,
-        setCurrency,
-        transactions,
+    const value = useMemo(() => ({
+        balance: wallet.balance,
+        history: wallet.history,
+        stats: wallet.stats,
+        migratedFrom: wallet.migratedFrom,
+        migrationSeen: wallet.migrationSeen,
         placeBet,
         addWinnings,
-        deposit,
+        addFreeCredits,
         resetBalance,
-        updateBalance,
+        dismissMigrationNotice,
         toasts,
         showToast,
-    }
+    }), [wallet, placeBet, addWinnings, addFreeCredits, resetBalance, dismissMigrationNotice, toasts, showToast])
 
-    return (
-        <WalletContext.Provider value={value}>
-            {children}
-        </WalletContext.Provider>
-    )
+    return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>
 }
 
 export function useWallet() {
     const context = useContext(WalletContext)
-    if (!context) {
-        throw new Error('useWallet must be used within a WalletProvider')
-    }
+    if (!context) throw new Error('useWallet must be used within a WalletProvider')
     return context
 }
 

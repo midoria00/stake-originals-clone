@@ -5,6 +5,7 @@ import {
     getAntdTheme,
     getPalette,
     isPaletteId,
+    LEGACY_PALETTE_STORAGE_KEY,
     PALETTES,
     PALETTE_STORAGE_KEY,
 } from '../theme/palettes'
@@ -15,7 +16,10 @@ function getStoredPaletteId() {
     try {
         const stored = localStorage.getItem(PALETTE_STORAGE_KEY)
         if (isPaletteId(stored)) return stored
-    } catch (e) { /* ignore */ }
+        // Keep a theme chosen in the previous version; the retired old-brand palette falls back to the default.
+        const legacy = localStorage.getItem(LEGACY_PALETTE_STORAGE_KEY)
+        if (isPaletteId(legacy)) return legacy
+    } catch { /* storage blocked */ }
     return DEFAULT_PALETTE_ID
 }
 
@@ -30,7 +34,10 @@ export function ThemeProvider({ children }) {
 
     const setPaletteId = (nextPaletteId) => {
         if (!isPaletteId(nextPaletteId)) return
-        try { localStorage.setItem(PALETTE_STORAGE_KEY, nextPaletteId) } catch (e) { /* ignore */ }
+        try {
+            localStorage.setItem(PALETTE_STORAGE_KEY, nextPaletteId)
+            localStorage.removeItem(LEGACY_PALETTE_STORAGE_KEY)
+        } catch { /* storage blocked */ }
         setPaletteIdState(nextPaletteId)
     }
 

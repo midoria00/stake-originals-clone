@@ -25,7 +25,7 @@ const BtcIcon = ({ size = 20, fontSize = 12 }) => (
 
 function Header({ menuOpen, menuButtonRef, onMenuClick }) {
     const location = useLocation()
-    const { balance, deposit, resetBalance, transactions, toasts } = useWallet()
+    const { balance, addFreeCredits: deposit, resetBalance, history: transactions, toasts } = useWallet()
     const { paletteId, palettes, setPaletteId } = useThemeSettings()
     const [showWalletDropdown, setShowWalletDropdown] = useState(false)
     const [depositAmount, setDepositAmount] = useState('')
@@ -157,15 +157,15 @@ function Header({ menuOpen, menuButtonRef, onMenuClick }) {
                                                         <span className="wallet-tx-type">
                                                             {tx.type === 'bet' && '🎲 Bet'}
                                                             {tx.type === 'win' && '🏆 Win'}
-                                                            {tx.type === 'deposit' && '💰 Deposit'}
+                                                            {tx.type === 'refill' && '💰 Deposit'}
                                                             {tx.type === 'reset' && '🔄 Reset'}
                                                         </span>
                                                         <span className="wallet-tx-time">
-                                                            {tx.timestamp.toLocaleTimeString()}
+                                                            {new Date(tx.at).toLocaleTimeString()}
                                                         </span>
                                                     </div>
-                                                    <span className={`wallet-tx-amount ${tx.amount >= 0 ? 'positive' : 'negative'}`}>
-                                                        {tx.amount >= 0 ? '+' : ''}₿{Math.abs(tx.amount).toFixed(2)}
+                                                    <span className={`wallet-tx-amount ${tx.type !== 'bet' ? 'positive' : 'negative'}`}>
+                                                        {tx.type !== 'bet' ? '+' : '-'}₿{Math.abs(tx.amount).toFixed(2)}
                                                     </span>
                                                 </div>
                                             ))}

@@ -1,0 +1,109 @@
+/* 123bet design system tokens. Colour tokens are the defaults of the "123bet" palette and are
+   overwritten at runtime by src/theme/palettes.js when the visitor picks another theme. */
+:root {
+    color-scheme: dark;
+
+    /* Surfaces */
+    --bg-app: #0a0f17;
+    --bg-header: #0c121c;
+    --bg-sidebar: #0e1520;
+    --bg-main: #111a26;
+    --surface-1: #151f2d;
+    --surface-2: #1a2738;
+    --surface-3: #223246;
+    --surface-hover: #2a3d55;
+
+    --bg-primary: var(--bg-main);
+    --bg-secondary: var(--bg-sidebar);
+    --bg-tertiary: var(--surface-2);
+    --bg-input: var(--surface-1);
+
+    --border-subtle: #223146;
+    --border-default: #2c3f57;
+    --border-strong: #3b5372;
+    --border-color: var(--border-subtle);
+
+    /* Text */
+    --text-primary: #f3f7fb;
+    --text-secondary: #a9b7c7;
+    --text-muted: #74869b;
+    --text-disabled: #4a5a6d;
+
+    /* Brand and states */
+    --primary: #1fd67a;
+    --primary-hover: #47e594;
+    --primary-active: #16b866;
+    --primary-soft: rgba(31, 214, 122, 0.14);
+    --on-primary: #04140b;
+    --cyan: #3cc8ff;
+    --cyan-soft: rgba(60, 200, 255, 0.14);
+    --hero-overlay: #060a10;
+    --hero-accent: #5ef0a4;
+    --accent-warm: #ffb547;
+    --accent-warm-hover: #ffc876;
+    --accent-orange: #ff8a3d;
+    --success: #1fd67a;
+    --success-soft: rgba(31, 214, 122, 0.14);
+    --danger: #ff5468;
+    --danger-soft: rgba(255, 84, 104, 0.14);
+
+    --accent-blue: #3c8dff;
+    --accent-green: var(--success);
+    --accent-green-hover: #16b866;
+    --accent-yellow: var(--accent-warm);
+    --accent-red: var(--danger);
+    --accent-purple: #8b7bff;
+
+    /* Elevation */
+    --shadow-sm: 0 6px 18px rgba(0, 6, 14, 0.24);
+    --shadow-md: 0 10px 30px rgba(0, 6, 14, 0.32);
+    --shadow-lg: 0 18px 44px rgba(0, 6, 14, 0.4);
+    --focus-ring: 0 0 0 3px color-mix(in srgb, var(--primary) 45%, transparent);
+
+    /* Typography */
+    --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-display: 'Manrope', var(--font-family);
+    --font-size-xs: 11px;
+    --font-size-sm: 13px;
+    --font-size-md: 15px;
+    --font-size-lg: 18px;
+    --font-size-xl: 24px;
+    --font-size-2xl: 34px;
+
+    /* Spacing (4 px grid) */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+
+    /* Shape and motion */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+    --radius-full: 9999px;
+    --transition-fast: 0.15s ease;
+    --transition-normal: 0.25s ease;
+
+    /* Layout */
+    --header-height: 64px;
+    --sidebar-width: 240px;
+    --content-max: 1240px;
+    --mobile-header-height: 56px;
+    --mobile-nav-height: 60px;
+    --mobile-nav-space: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
+    --z-header: 300;
+    --z-nav: 350;
+    --z-overlay: 1000;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --transition-fast: 0s;
+        --transition-normal: 0s;
+    }
+}
