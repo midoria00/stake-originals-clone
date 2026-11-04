@@ -1,0 +1,86 @@
+#!/usr/bin/env node
+// Imports a game catalog that an authorized partner (aggregator or provider) supplied, into
+// server/casino/data/catalog.json. Only use files you are allowed to use; the authorization
+// reference is stored with the import.
+//
+//   node scripts/casino/importCatalog.mjs --source hub88 --file export.json --authorization "Contrato X, cláusula Y" [--replace]
+//
+// Input: a JSON array (or { "games": [...] }) whose entries use the catalog field names:
+//   provider (registry id or provider name), externalId, name, category, image | { src, avif, webp },
+//   description, platforms, languages, rtp | { min, max }, volatility, available, demo | demoUrl, addedAt.
+// Feeds with other field names need a mapping step before this script; none is guessed here.
+import { readFile, writeFile } from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { dedupeGames, normalizeGame } from '../../server/casino/catalog.js'
+import { isSourceId } from '../../server/casino/sources.js'
+
+const CATALOG_PATH = fileURLToPath(new URL('../../server/casino/data/catalog.json', import.meta.url))
+
+export function parseArgs(argv) {
+    const args = {}
+    for (let i = 0; i < argv.length; i += 1) {
+        const key = argv[i]
+        if (key === '--replace') args.replace = true
+        else if (key.startsWith('--')) args[key.slice(2)] = argv[(i += 1)]
+    }
+    return args
+}
+
+export function mergeCatalog(current, { source, entries, authorization, file, replace = false, now = new Date() }) {
+    if (!isSourceId(source)) throw new Error(`Fonte desconhecida: ${source}`)
+    if (!authorization || authorization.trim().length < 5) throw new Error('Informe --authorization com a referência da autorização de uso do catálogo.')
+    if (!Array.isArray(entries)) throw new Error('O arquivo deve conter uma lista de jogos.')
+    const accepted = []
+    const rejected = []
+    for (const [position, raw] of entries.entries()) {
+        const { game, error } = normalizeGame(raw, source, now)
+        if (game) accepted.push(game)
+        else rejected.push({ position, error })
+    }
+    const kept = (current.games ?? []).filter((game) => !(replace && game.source === source))
+    const { games, duplicates } = dedupeGames([...kept, ...accepted])
+    const record = {
+        source,
+        file: path.basename(file ?? 'entrada'),
+        authorization: authorization.trim().slice(0, 300),
+        importedAt: now.toISOString(),
+        received: entries.length,
+        accepted: accepted.length,
+        rejected: rejected.length,
+        duplicates: duplicates.length,
+        replace,
+    }
+    return {
+        catalog: { version: 1, generatedAt: now.toISOString(), imports: [...(current.imports ?? []), record].slice(-50), games },
+        record,
+        rejected,
+    }
+}
+
+async function main() {
+    const args = parseArgs(process.argv.slice(2))
+    if (!args.source || !args.file) {
+        console.error('Uso: node scripts/casino/importCatalog.mjs --source <id> --file <arquivo.json> --authorization "<referência>" [--replace]')
+        process.exit(1)
+    }
+    const input = JSON.parse(await readFile(args.file, 'utf8'))
+    const current = JSON.parse(await readFile(CATALOG_PATH, 'utf8'))
+    const { catalog, record, rejected } = mergeCatalog(current, {
+        source: args.source,
+        entries: Array.isArray(input) ? input : input?.games,
+        authorization: args.authorization,
+        file: args.file,
+        replace: Boolean(args.replace),
+    })
+    await writeFile(CATALOG_PATH, `${JSON.stringify(catalog, null, 2)}\n`)
+    console.log(`Importação concluída: ${record.accepted} aceitos, ${record.rejected} rejeitados, ${record.duplicates} duplicados; catálogo com ${catalog.games.length} jogos externos.`)
+    for (const item of rejected.slice(0, 20)) console.log(`  #${item.position}: ${item.error}`)
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+    main().catch((error) => {
+        console.error(error.message)
+        process.exit(1)
+    })
+}
