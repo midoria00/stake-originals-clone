@@ -89,7 +89,7 @@ test('Dino keeps Phaser and live actions ahead of secondary controls', async () 
         './src/components/DinoGame/DinoGame.jsx',
         './src/components/DinoGame/DinoGame.css',
     ])
-    assert.match(component, /<MobileBetSheet[^>]*title="Dino bet controls"/)
+    assert.match(component, /<MobileBetSheet[^>]*title=\{t\('dino\.betControls'\)\}/)
     assert.match(component, /collapseOn=\{gamePhase === 'running' \|\| gamePhase === 'waiting'\}/)
     assert.match(component, /dino-bet-sheet/)
     assert.match(component, /mobile-sheet-secondary/)

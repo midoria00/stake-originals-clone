@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import CONFIG from '../../../config/game';
 import BaseScorePanel from './BaseScorePanel';
+import { t } from '../../../../../../i18n';
 
 /**
  * High score panel
@@ -21,7 +22,7 @@ class HighScorePanel extends BaseScorePanel {
     super(scene);
 
     this.scene = scene;
-    this.defaultString = 'HI ';
+    this.defaultString = t('dino.scene.highScore');
 
     // Register event handlers
     this.scene.events.on(CONFIG.EVENTS.HIGH_SCORE_FETCH.SUCCESS, this.onFetchScore, this);

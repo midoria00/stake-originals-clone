@@ -131,7 +131,7 @@
     align-items: center;
 }
 
-/* Currency Icon - Bitcoin Style like Plinko */
+/* Currency Icon (123 Coins) */
 .dino-game-page .dino-sidebar .dino-currency-icon {
     width: 20px;
     height: 20px;
@@ -139,7 +139,7 @@
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    background: linear-gradient(135deg, #f7931a, #ffb347);
+    background: transparent;
     color: #fff;
     font-weight: 800;
     font-size: 13px;
@@ -177,7 +177,7 @@
     border-bottom-left-radius: 0 !important;
 }
 
-/* Currency Icon inside addon - Bitcoin Style */
+/* Currency Icon inside addon (123 Coins) */
 .dino-game-page .dino-sidebar .ant-input-number-group-addon .dino-currency-icon,
 .dino-game-page .dino-sidebar .ant-input-number-addon .dino-currency-icon {
     width: 20px;
@@ -186,7 +186,7 @@
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    background: linear-gradient(135deg, #f7931a, #ffb347) !important;
+    background: transparent !important;
     color: #fff !important;
     font-weight: 800;
     font-size: 13px;
@@ -427,7 +427,7 @@
 /* JUMP Button Specific Overrides */
 .dino-game-page .dino-sidebar .bet-button.jump-btn {
     background: #5383E8 !important;
-    /* Stake Blue */
+    /* Brand blue */
     color: #fff !important;
     box-shadow: 0 6px 0 #2A488A, 0 6px 10px rgba(0, 0, 0, 0.3) !important;
 }
