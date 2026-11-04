@@ -31,7 +31,8 @@ function Header({ menuOpen, menuButtonRef, onMenuClick }) {
     const [depositAmount, setDepositAmount] = useState('')
     const dropdownRef = useRef(null)
 
-    const isGamePage = isGamePath(location.pathname)
+    // Sports pages also bet with the fictional wallet, so they get the same header as the games.
+    const isGamePage = isGamePath(location.pathname) || location.pathname.startsWith('/sports')
     const isHomePage = location.pathname === '/'
 
     // Close dropdown when clicking outside

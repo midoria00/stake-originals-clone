@@ -7,6 +7,7 @@ import './MobileNavigation.css'
 
 const primaryRoutes = [
     { path: '/', label: 'Home', icon: '⌂' },
+    { path: '/sports', label: 'Esportes', icon: '⚽' },
     ...GAMES.map(game => ({ path: game.path, label: game.name, icon: '◆' })),
 ]
 

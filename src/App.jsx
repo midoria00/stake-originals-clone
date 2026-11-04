@@ -8,6 +8,9 @@ const CrashPage = lazy(() => import('./pages/CrashPage'))
 const PlinkoPage = lazy(() => import('./pages/PlinkoPage'))
 const DinoPage = lazy(() => import('./pages/DinoPage'))
 const MinesPage = lazy(() => import('./pages/MinesPage'))
+const SportsLayout = lazy(() => import('./sports/SportsLayout'))
+const SportsHome = lazy(() => import('./sports/SportsHome'))
+const MatchDetail = lazy(() => import('./sports/MatchDetail'))
 
 function App() {
     return (
@@ -26,6 +29,10 @@ function App() {
                         <Route path="plinko" element={<PlinkoPage />} />
                         <Route path="dino" element={<DinoPage />} />
                         <Route path="mines" element={<MinesPage />} />
+                        <Route path="sports" element={<SportsLayout />}>
+                            <Route index element={<SportsHome />} />
+                            <Route path="match/:id" element={<MatchDetail />} />
+                        </Route>
                     </Route>
                 </Routes>
             </Suspense>

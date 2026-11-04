@@ -1,0 +1,11 @@
+// Browser side only talks to our own /api/sports endpoints; provider keys never reach the client.
+async function getJson(url, signal) {
+    const response = await fetch(url, { signal, headers: { accept: 'application/json' } })
+    const body = await response.json().catch(() => null)
+    if (!response.ok || !body) throw new Error(body?.error ?? `Falha ao carregar dados (${response.status})`)
+    return body
+}
+
+export const fetchMatches = (params, signal) => getJson(`/api/sports/matches?${new URLSearchParams(params)}`, signal)
+
+export const fetchMatch = (id, signal) => getJson(`/api/sports/match?id=${encodeURIComponent(id)}`, signal)

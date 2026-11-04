@@ -139,6 +139,17 @@ An animated runner-style multiplier game featuring:
 
 ---
 
+## Sports (football, simulated betting)
+
+`/sports` adds a football section: live matches, upcoming fixtures, results, match pages with statistics and events, and a bet slip for single and multiple bets. Stakes come from the same **fictional** wallet as the casino games; there are no deposits, withdrawals or real-money bets.
+
+- **Data:** the browser only calls `/api/sports/matches` and `/api/sports/match` (Vercel Functions in `api/`, shared code in `server/sports/`). With `API_FOOTBALL_KEY` set, they return real fixtures, scores, statistics, crests and bookmaker odds from API-Football. Without it, the section runs in **demo mode**: every match, score and odd is simulated and labelled as such.
+- **Markets:** 1X2, goals over/under, both teams to score, Asian handicap, 3-way handicap, corners and cards over/under, only when the provider (or the demo model) offers them.
+- **Limits and cost:** answers are cached by the Vercel CDN (`s-maxage` 20 s for live data, up to 1 h for finished matches) and per instance, so every visitor shares the same upstream calls. Provider comparison and costs: [`docs/sports-data-providers.md`](./docs/sports-data-providers.md).
+- **Setup:** copy `.env.example` to `.env.local` for local runs, or add `API_FOOTBALL_KEY` in Vercel → Project Settings → Environment Variables, then redeploy. The API-Football adapter has not yet been checked against a live response (see the doc above); run `npm test` and open `/api/sports/matches?view=live` after adding the key.
+
+---
+
 ## Tech Stack
 
 - **React**

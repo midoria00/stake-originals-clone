@@ -1,5 +1,8 @@
-import { NavLink, useLocation } from 'react-router-dom'
+import { Link, NavLink, useLocation } from 'react-router-dom'
 import { GAMES } from '../games'
+import { FEATURED_LEAGUES } from '../../server/sports/leagues.js'
+
+const sportsLeagues = FEATURED_LEAGUES.slice(0, 5)
 
 const navItems = [
     { icon: 'star', label: 'Favourites', path: '/favourites' },
@@ -30,11 +33,15 @@ const icons = {
     roulette: <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-5.5 15.5l7.51-3.49L17.5 6.5 9.99 9.99 6.5 17.5z" />,
     plinko: <path d="M12 2L2 20h20L12 2zm0 4l6.5 12h-13L12 6z" />,
     dino: <path d="M22 16V8c0-1.1-.9-2-2-2h-3V4c0-.55-.45-1-1-1h-4c-.55 0-1 .45-1 1v2H8C6.9 6 6 6.9 6 8v2H4v2h2v4c0 1.1.9 2 2 2h1v2h2v-2h6v2h2v-2h1c1.1 0 2-.9 2-2zm-6-6h-2V8h2v2z" />,
-    mines: <path d="M12 2L2 20h20L12 2zm0 3.84l7.02 12.16H4.98L12 5.84zm0 3.16L8.5 15h7L12 9z" />
+    mines: <path d="M12 2L2 20h20L12 2zm0 3.84l7.02 12.16H4.98L12 5.84zm0 3.16L8.5 15h7L12 9z" />,
+    ball: <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 3.3l2.7-1.1a8 8 0 013.5 2.6l-.8 2.8-2.6.9L13 6.7V5.3zM8.3 4.2L11 5.3v1.4L8.2 8.5l-2.6-.9-.8-2.8a8 8 0 013.5-2.6zM6.3 17.7l-1.8.2A8 8 0 014 12.4l2.2-1.7 2.5.9 1 3.1-1.3 2.2-2.1.8zm9.2 2a8 8 0 01-7 0l-.8-2.4 1.4-2.3h3.8l1.4 2.3-.8 2.4zm4-1.8l-1.8-.2-2.1-.8-1.3-2.2 1-3.1 2.5-.9 2.2 1.7a8 8 0 01-.5 5.5z" />
 }
 
 function Sidebar({ isOpen, toggleSidebar }) {
-    const isHomePage = useLocation().pathname === '/'
+    const { pathname, search } = useLocation()
+    const isHomePage = pathname === '/'
+    const isSports = pathname.startsWith('/sports')
+    const leagueParam = new URLSearchParams(search).get('league')
 
     return (
         <aside className={`app-sidebar ${isHomePage ? 'app-sidebar-home' : ''} ${!isOpen ? 'app-sidebar-hidden' : ''}`}>
@@ -43,12 +50,12 @@ function Sidebar({ isOpen, toggleSidebar }) {
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2z"></path></svg>
                 </button>
                 <div className="sidebar-switcher">
-                    <button className="switch-btn active">
+                    <Link to="/" className={`switch-btn ${isSports ? '' : 'active'}`}>
                         Casino
-                    </button>
-                    <button className="switch-btn">
-                        Sports
-                    </button>
+                    </Link>
+                    <Link to="/sports" className={`switch-btn ${isSports ? 'active' : ''}`}>
+                        Esportes
+                    </Link>
                 </div>
             </div>
 
@@ -65,6 +72,32 @@ function Sidebar({ isOpen, toggleSidebar }) {
                             </span>
                             <span>{item.label}</span>
                         </NavLink>
+                    ))}
+                </div>
+
+                <div className="nav-section">
+                    <h3 className="nav-title">Esportes</h3>
+                    <NavLink
+                        to="/sports"
+                        end
+                        className={() => `nav-item ${isSports && !leagueParam ? 'active' : ''}`}
+                    >
+                        <span className="nav-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor">{icons.ball}</svg>
+                        </span>
+                        <span>Futebol</span>
+                    </NavLink>
+                    {sportsLeagues.map((league) => (
+                        <Link
+                            key={league.id}
+                            to={`/sports?league=${league.id}`}
+                            className={`nav-item ${isSports && leagueParam === String(league.id) ? 'active' : ''}`}
+                        >
+                            <span className="nav-icon">
+                                <svg viewBox="0 0 24 24" fill="currentColor">{icons.trophy}</svg>
+                            </span>
+                            <span>{league.name}</span>
+                        </Link>
                     ))}
                 </div>
 

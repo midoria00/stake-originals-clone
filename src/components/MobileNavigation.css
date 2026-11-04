@@ -11,7 +11,8 @@
         left: 0;
         display: grid;
         height: var(--mobile-nav-space);
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(0, 1fr);
         padding: 4px 4px env(safe-area-inset-bottom);
         border-top: 1px solid var(--border-subtle);
         background: var(--bg-header);
