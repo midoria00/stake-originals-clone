@@ -138,9 +138,10 @@ test('lookups by id cannot drain the provider quota', async () => {
     const { calls, fetchImpl } = fakeApi([['/fixtures', { errors: [], response: [fixture(4004, 'FT', { home: 1, away: 0 })] }]])
     const service = createSportsService({ env: { API_FOOTBALL_KEY: KEY }, fetchImpl, now: () => NOW })
     const results = await Promise.allSettled(Array.from({ length: 125 }, (_, i) => service.match(query({ id: String(5000 + i) }))))
-    assert.equal(results.filter((r) => r.status === 'fulfilled').length, 120, 'per-minute cap per instance')
+    assert.equal(results.filter((r) => r.status === 'fulfilled').length, 80, 'id lookups stop at 120/min minus the list reserve')
     assert.match(results.at(-1).reason.message, /limitadas/)
-    assert.equal(calls.length, 120)
+    assert.equal(calls.length, 80)
+    assert.equal((await service.matches(query({ view: 'date', date: TODAY }))).view, 'date', 'lists still get through after an id flood')
 
     clearCache()
     const low = fakeApi([['/fixtures', { errors: [], response: [fixture(4005, 'FT', { home: 1, away: 0 })] }, 200, { 'x-ratelimit-requests-remaining': '50' }]])

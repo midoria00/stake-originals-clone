@@ -16,6 +16,8 @@ const LOW_QUOTA = 150
 const RESERVED_FOR_LISTS = 100
 // API-Football Pro allows 300 requests/minute (docs/sports-data-providers.md).
 const UPSTREAM_PER_MINUTE = 120
+// Part of each minute that lookups by id can never use, so the shared live/date lists keep working.
+const LIST_RESERVE_PER_MINUTE = 40
 
 export class ProviderError extends Error {
     constructor(message, { status = 502, quota = false } = {}) {
@@ -148,6 +150,7 @@ export function createApiFootballProvider({ key, fetchImpl = fetch, upstreamPerM
         if (now - window.start >= 60_000) window = { start: now, count: 0 }
         if (window.count >= upstreamPerMinute) return false
         const byId = 'id' in params || 'ids' in params || 'fixture' in params
+        if (byId && window.count >= upstreamPerMinute - LIST_RESERVE_PER_MINUTE) return false
         if (byId && quota.day !== null && quota.day < RESERVED_FOR_LISTS) return false
         window.count += 1
         return true
