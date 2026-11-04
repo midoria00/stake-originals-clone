@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Tag, Button, Drawer, List, Space, Typography } from 'antd'
 import { HistoryOutlined, RightOutlined } from '@ant-design/icons'
+import { t } from '../../i18n'
+import { formatMultiplier } from '../../i18n/format'
 
 const { Text } = Typography
 
@@ -27,7 +29,7 @@ function GameHistory({ history }) {
                                 color={color}
                                 className={`history-tag ${className}`}
                             >
-                                {m.toFixed(2)}×
+                                {formatMultiplier(m)}
                             </Tag>
                         )
                     })}
@@ -38,6 +40,7 @@ function GameHistory({ history }) {
                     type="text"
                     className="view-all-btn"
                     onClick={() => setDrawerOpen(true)}
+                    aria-label={t('crash.gameHistory')}
                     icon={<RightOutlined />}
                 />
             </div>
@@ -47,7 +50,7 @@ function GameHistory({ history }) {
                 title={
                     <Space>
                         <HistoryOutlined />
-                        <span>Game History</span>
+                        <span>{t('crash.gameHistory')}</span>
                     </Space>
                 }
                 placement="right"
@@ -75,11 +78,11 @@ function GameHistory({ history }) {
                                 <Space>
                                     <Text type="secondary">#{index + 1}</Text>
                                     <Tag color={color} className={className}>
-                                        {item.toFixed(2)}×
+                                        {formatMultiplier(item)}
                                     </Tag>
                                 </Space>
                                 <Text type="secondary" style={{ fontSize: 12 }}>
-                                    {index === 0 ? 'Just now' : `${index * 15}s ago`}
+                                    {index === 0 ? t('crash.justNow') : t('crash.secondsAgo', { n: index * 15 })}
                                 </Text>
                             </List.Item>
                         )

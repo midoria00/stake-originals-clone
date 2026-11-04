@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { Card, Typography, Space, Badge, Collapse, Avatar } from 'antd'
 import { UserOutlined, CaretUpOutlined, CaretDownOutlined } from '@ant-design/icons'
+import { CoinIcon } from '../../brand/Brand'
+import { t } from '../../i18n'
+import { formatCoins, formatMultiplier, formatNumber } from '../../i18n/format'
 
 const { Text } = Typography
 
@@ -12,20 +15,12 @@ const generatePlayers = () => {
         'ShadowBet', 'GoldRush', 'DiamondH', 'AcePlayer', 'BetMaster'
     ]
 
-    const currencies = [
-        { symbol: '₮', color: '#26A17B', name: 'USDT' },
-        { symbol: '₿', color: '#F7931A', name: 'BTC' },
-        { symbol: '$', color: '#00e701', name: 'USD' },
-        { symbol: 'Ξ', color: '#627EEA', name: 'ETH' },
-    ]
-
     return names.map((name, i) => ({
         id: i,
         name: name === 'Hidden' ? 'Hidden' : name,
         isHidden: name === 'Hidden' || Math.random() > 0.6,
-        betAmount: (Math.random() * 500 + 0.001).toFixed(name === 'Hidden' ? 2 : 5),
+        betAmount: (Math.random() * 500 + 0.001).toFixed(2),
         cashoutAt: Math.random() > 0.5 ? (Math.random() * 3 + 1).toFixed(2) : null,
-        currency: currencies[Math.floor(Math.random() * currencies.length)],
         profit: null
     }))
 }
@@ -62,12 +57,11 @@ function PlayerBets({ multiplier, phase, onPlayerCashout, userBetData }) {
                         if (onPlayerCashout && !player.isHidden) {
                             onPlayerCashout({
                                 name: player.name,
-                                amount: profit.toFixed(5),
-                                currency: player.currency,
+                                amount: profit.toFixed(2),
                                 multiplier: player.cashoutAt
                             })
                         }
-                        return { ...player, profit: profit.toFixed(5) }
+                        return { ...player, profit: profit.toFixed(2) }
                     }
                     return player
                 })
@@ -79,6 +73,11 @@ function PlayerBets({ multiplier, phase, onPlayerCashout, userBetData }) {
 
     return (
         <div className="player-bets-panel">
+            {/* Generated activity: always labelled as simulated */}
+            <div className="player-bets-simulated" style={{ padding: '8px 12px 0' }}>
+                <Text strong style={{ fontSize: 12 }}>{t('crash.simulated')}</Text>
+                <Text type="secondary" style={{ display: 'block', fontSize: 11 }}>{t('crash.simulatedNote')}</Text>
+            </div>
             {/* Header */}
             <div
                 className="player-bets-header"
@@ -87,11 +86,11 @@ function PlayerBets({ multiplier, phase, onPlayerCashout, userBetData }) {
                 <Space>
                     <Badge status="processing" color="var(--success)" />
                     <UserOutlined />
-                    <Text strong>{playerCount + (userBetData ? 1 : 0)}</Text>
+                    <Text strong>{formatNumber(playerCount + (userBetData ? 1 : 0))}</Text>
                 </Space>
                 <Space>
-                    <span className="currency-badge usdt">₮</span>
-                    <Text strong>{(totalBet + (userBetData?.amount || 0)).toFixed(2)}...</Text>
+                    <CoinIcon size={16} />
+                    <Text strong>{formatCoins(totalBet + (userBetData?.amount || 0))}</Text>
                     {expanded ? <CaretUpOutlined /> : <CaretDownOutlined />}
                 </Space>
             </div>
@@ -104,14 +103,14 @@ function PlayerBets({ multiplier, phase, onPlayerCashout, userBetData }) {
                             <div className="player-info">
                                 {player.isHidden ? (
                                     <Text type="secondary" className="hidden-name">
-                                        <UserOutlined /> Hidden
+                                        <UserOutlined /> {t('crash.hidden')}
                                     </Text>
                                 ) : (
                                     <Text className="player-name">{player.name}</Text>
                                 )}
                                 {player.cashoutAt && player.profit && (
                                     <Text className="cashout-mult" type="success">
-                                        {player.cashoutAt}×
+                                        {formatMultiplier(player.cashoutAt)}
                                     </Text>
                                 )}
                                 {player.cashoutAt && !player.profit && (
@@ -121,14 +120,9 @@ function PlayerBets({ multiplier, phase, onPlayerCashout, userBetData }) {
                                 )}
                             </div>
                             <div className="bet-amount">
-                                <span
-                                    className="currency-badge small"
-                                    style={{ background: player.currency.color }}
-                                >
-                                    {player.currency.symbol}
-                                </span>
+                                <CoinIcon size={14} />
                                 <Text className={player.profit ? 'profit' : ''}>
-                                    {player.profit || (typeof player.amount === 'number' ? player.amount.toFixed(2) : player.betAmount)}
+                                    {formatCoins(player.profit || (typeof player.amount === 'number' ? player.amount : player.betAmount))}
                                 </Text>
                             </div>
                         </div>

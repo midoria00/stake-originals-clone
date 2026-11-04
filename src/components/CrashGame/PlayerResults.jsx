@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Typography } from 'antd'
+import { Typography, Tag } from 'antd'
+import { CoinIcon } from '../../brand/Brand'
+import { t } from '../../i18n'
+import { formatCoins } from '../../i18n/format'
 
 const { Text } = Typography
 
@@ -41,15 +44,11 @@ function PlayerResults({ cashouts }) {
                     }}
                 >
                     <Text className="result-name">{cashout.name}</Text>
-                    <span
-                        className="currency-badge"
-                        style={{ background: cashout.currency.color }}
-                    >
-                        {cashout.currency.symbol}
-                    </span>
+                    <CoinIcon size={16} />
                     <Text className="result-amount" style={{ color: 'var(--success)' }}>
-                        {cashout.amount}
+                        {formatCoins(cashout.amount)}
                     </Text>
+                    <Tag style={{ margin: 0 }} title={t('crash.simulatedNote')}>{t('crash.simulatedShort')}</Tag>
                 </div>
             ))}
         </div>
