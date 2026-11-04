@@ -18,6 +18,8 @@ const RESERVED_FOR_LISTS = 100
 const UPSTREAM_PER_MINUTE = 120
 // Part of each minute that lookups by id can never use, so the shared live/date lists keep working.
 const LIST_RESERVE_PER_MINUTE = 40
+// Live every 20 s (2 calls, ~8,600/day) + today's list and league odds + match pages.
+const DAILY_CALLS_AT_DEFAULT_TTL = 12_000
 
 export class ProviderError extends Error {
     constructor(message, { status = 502, quota = false } = {}) {
@@ -138,8 +140,12 @@ function liveMarkets(item) {
 }
 
 export function createApiFootballProvider({ key, fetchImpl = fetch, upstreamPerMinute = UPSTREAM_PER_MINUTE }) {
-    const quota = { day: null, minute: null }
+    const quota = { day: null, minute: null, limit: null }
     const quotaLow = () => quota.day !== null && quota.day < LOW_QUOTA
+    // Fit the cache to the plan: the default TTLs need ~DAILY_CALLS_AT_DEFAULT_TTL calls a day with
+    // visitors around the clock, so smaller plans refresh proportionally less often (Pro ~1.6x),
+    // and every TTL stretches 4x more once the day's quota is nearly gone.
+    const ttlFactor = () => Math.max(1, quota.limit ? DAILY_CALLS_AT_DEFAULT_TTL / quota.limit : 1) * (quotaLow() ? 4 : 1)
     let window = { start: 0, count: 0 }
 
     // Ids come from visitors, so lookups by id can always miss the cache. Cap upstream calls per
@@ -161,8 +167,7 @@ export function createApiFootballProvider({ key, fetchImpl = fetch, upstreamPerM
         for (const [name, value] of Object.entries(params)) {
             if (value !== undefined && value !== null) url.searchParams.set(name, String(value))
         }
-        // Stretch every TTL when the daily quota is nearly gone, instead of failing outright.
-        return memo(`af:${url.pathname}${url.search}`, ttlMs * (quotaLow() ? 4 : 1), async () => {
+        return memo(`af:${url.pathname}${url.search}`, ttlMs * ttlFactor(), async () => {
             if (!admit(params)) throw new ProviderError('Consultas ao fornecedor temporariamente limitadas', { status: 503, quota: true })
             let response
             try {
@@ -172,8 +177,10 @@ export function createApiFootballProvider({ key, fetchImpl = fetch, upstreamPerM
             }
             const day = toNumber(response.headers.get('x-ratelimit-requests-remaining'))
             const minute = toNumber(response.headers.get('x-ratelimit-remaining'))
+            const limit = toNumber(response.headers.get('x-ratelimit-requests-limit'))
             if (day !== null) quota.day = day
             if (minute !== null) quota.minute = minute
+            if (limit) quota.limit = limit
             if (response.status === 429) throw new ProviderError('Limite de requisições do fornecedor atingido', { status: 503, quota: true })
             if (!response.ok) throw new ProviderError(`Fornecedor de dados respondeu ${response.status}`)
             const body = await response.json()
