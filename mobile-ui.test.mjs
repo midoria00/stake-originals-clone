@@ -57,7 +57,7 @@ test('Mines keeps the square board ahead of a collapsible betting sheet', async 
         './src/components/MinesGame/MinesGame.jsx',
         './src/components/MinesGame/MinesGame.css',
     ])
-    assert.match(component, /<MobileBetSheet[^>]*title="Mines bet controls"/)
+    assert.match(component, /<MobileBetSheet[^>]*title=\{t\('mines\.betControls'\)\}/)
     assert.match(component, /mines-bet-sheet/)
     assert.match(component, /mobile-sheet-secondary/)
     assert.match(component, /rootClassName="mines-fairness-modal-portal mobile-game-modal"/)

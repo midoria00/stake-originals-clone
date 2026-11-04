@@ -20,6 +20,9 @@ import Chart from 'chart.js/auto'
 const { Title, Text, Paragraph } = Typography;
 import { useWallet } from '../../context/WalletContext'
 import ProvablyFair from '../../utils/ProvablyFair'
+import { Coins, CoinIcon, Logo } from '../../brand/Brand'
+import { t } from '../../i18n'
+import { formatCoins, formatMultiplier, formatNumber } from '../../i18n/format'
 import MobileBetSheet from '../MobileBetSheet'
 import './MinesGame.css'
 
@@ -70,8 +73,8 @@ function MinesGame() {
     // Provably Fair
     const fairnessRef = useRef(null);
     const [fairnessData, setFairnessData] = useState({
-        serverSeedHash: 'Loading...',
-        clientSeed: 'Loading...',
+        serverSeedHash: t('mines.loading'),
+        clientSeed: t('mines.loading'),
         nonce: 0,
     });
     const [revealedSeed, setRevealedSeed] = useState(null);
@@ -247,7 +250,7 @@ function MinesGame() {
                     labels: Array(profitHistory.length).fill(0),
                     datasets: [
                         {
-                            label: 'Profit',
+                            label: t('mines.stats.profit'),
                             data: profitHistory,
                             fill: {
                                 target: 'origin',
@@ -368,8 +371,8 @@ function MinesGame() {
         const mines = new Set(result.minePositions);
         const data = await pf.getFairnessData();
 
-        if (!placeBet(betAmount)) {
-            showToast('error', 'Insufficient Balance', `You need ₿${betAmount.toFixed(2)}`);
+        if (!placeBet(betAmount, 'mines')) {
+            showToast('error', t('games.insufficientTitle'), t('mines.toast.insufficientBody', { amount: formatCoins(betAmount) }));
             return;
         }
 
@@ -378,7 +381,7 @@ function MinesGame() {
         setRevealedTiles([]);
         setGameOverState(null);
         setIsPlaying(true);
-        showToast('bet', 'Game Started', `₿${betAmount.toFixed(2)} bet placed`);
+        showToast('bet', t('mines.toast.startedTitle'), t('mines.toast.startedBody', { amount: formatCoins(betAmount) }));
     };
 
     const endGame = (reason) => {
@@ -386,7 +389,7 @@ function MinesGame() {
         setGameOverState(reason);
         if (reason === 'win') {
             const profit = potentialWin - betAmount;
-            addWinnings(potentialWin);
+            addWinnings(potentialWin, 'mines');
 
             // Update stats
             setTotalProfit(prev => prev + profit);
@@ -394,7 +397,7 @@ function MinesGame() {
             setWinRecords(prev => [...prev, profit]);
             profitHistoryRef.current.push(profitHistoryRef.current[profitHistoryRef.current.length - 1] + profit);
 
-            showToast('win', 'Cashed Out!', `+₿${profit.toFixed(2)} at ${currentMultiplier.toFixed(2)}×`, 4000);
+            showToast('win', t('mines.toast.cashOutTitle'), t('mines.toast.cashOutBody', { amount: formatCoins(profit), multiplier: formatMultiplier(currentMultiplier) }), 4000);
             playSound('win');
         } else if (reason === 'loss') {
             // Update stats
@@ -403,7 +406,7 @@ function MinesGame() {
             setWinRecords(prev => [...prev, -betAmount]);
             profitHistoryRef.current.push(profitHistoryRef.current[profitHistoryRef.current.length - 1] - betAmount);
 
-            showToast('loss', 'Boom!', `-₿${betAmount.toFixed(2)}`, 3000);
+            showToast('loss', t('mines.toast.lossTitle'), t('mines.toast.lossBody', { amount: formatCoins(betAmount) }), 3000);
             playSound('loss');
         }
     };
@@ -448,7 +451,7 @@ function MinesGame() {
                 const finalMult = calculateMultiplier(minesCount, newRevealed.length);
                 const finalWin = betAmount * finalMult;
                 const profit = finalWin - betAmount;
-                addWinnings(finalWin);
+                addWinnings(finalWin, 'mines');
 
                 // Update stats
                 setTotalProfit(prev => prev + profit);
@@ -456,7 +459,7 @@ function MinesGame() {
                 setWinRecords(prev => [...prev, profit]);
                 profitHistoryRef.current.push(profitHistoryRef.current[profitHistoryRef.current.length - 1] + profit);
 
-                showToast('win', 'All Gems Found!', `+₿${profit.toFixed(2)} at ${finalMult.toFixed(2)}×`, 4000);
+                showToast('win', t('mines.toast.allGemsTitle'), t('mines.toast.cashOutBody', { amount: formatCoins(profit), multiplier: formatMultiplier(finalMult) }), 4000);
             }
         }
     };
@@ -475,25 +478,32 @@ function MinesGame() {
                 statusClass = `revealed ${isMine ? 'bomb-tile' : 'gem-tile'}`;
                 content = isMine ? (
                     <>
-                        <img src="/images/mines/bomb.svg" alt="Bomb" className="reveal-anim" />
-                        <img src="/images/mines/bomb_effect.gif" alt="Explosion" className="bomb-effect" />
+                        <img src="/images/mines/bomb.svg" alt="" className="reveal-anim" />
+                        <img src="/images/mines/bomb_effect.gif" alt="" className="bomb-effect" />
                     </>
                 ) : (
-                    <img src="/images/mines/diamond.svg" alt="Gem" className="reveal-anim" />
+                    <img src="/images/mines/diamond.svg" alt="" className="reveal-anim" />
                 );
             } else if (isGameOver) {
                 // Show remaining tiles semi-transparently
                 statusClass = `revealed game-over-reveal`;
                 content = isMine ? (
-                    <img src="/images/mines/bomb.svg" alt="Bomb" style={{ filter: 'grayscale(100%) opacity(0.5)' }} />
+                    <img src="/images/mines/bomb.svg" alt="" style={{ filter: 'grayscale(100%) opacity(0.5)' }} />
                 ) : (
-                    <img src="/images/mines/diamond.svg" alt="Gem" style={{ filter: 'grayscale(100%) opacity(0.5)' }} />
+                    <img src="/images/mines/diamond.svg" alt="" style={{ filter: 'grayscale(100%) opacity(0.5)' }} />
                 );
             }
+
+            const tileLabel = isRevealed
+                ? t(isMine ? 'mines.tile.mine' : 'mines.tile.gem', { n: i + 1 })
+                : isGameOver
+                    ? t(isMine ? 'mines.tile.remainingMine' : 'mines.tile.remainingGem', { n: i + 1 })
+                    : t('mines.tile.hidden', { n: i + 1 });
 
             tiles.push(
                 <button
                     key={i}
+                    aria-label={tileLabel}
                     className={`mine-tile ${statusClass} ${(!isPlaying || isRevealed) ? 'inactive' : ''}`}
                     onClick={() => {
                         if (!isPlaying || isRevealed) return;
@@ -515,7 +525,7 @@ function MinesGame() {
         <div className="mines-game">
             <div className="game-container">
                 {/* Sidebar Controls */}
-                <MobileBetSheet title="Mines bet controls" className="mines-bet-sheet">
+                <MobileBetSheet title={t('mines.betControls')} className="mines-bet-sheet">
                     <div className="mines-sidebar">
                     <div className="mines-sidebar-content">
                         <div className="mines-bet-panel">
@@ -525,47 +535,50 @@ function MinesGame() {
                                     className={`bet-mode-tab ${autoTab === 'manual' ? 'active' : ''}`}
                                     onClick={() => setAutoTab('manual')}
                                 >
-                                    Manual
+                                    {t('games.manual')}
                                 </button>
                                 <button
                                     className={`bet-mode-tab ${autoTab === 'auto' ? 'active' : ''}`}
                                     onClick={() => setAutoTab('auto')}
                                 >
-                                    Auto
+                                    {t('games.auto')}
                                 </button>
                             </div>
 
                             {/* Bet Amount */}
                             <div className="form-group">
                                 <div className="form-header">
-                                    <label className="form-label" style={{ margin: 0 }}>Bet Amount</label>
-                                    <Text type="secondary" style={{ margin: 0 }}>₿{(betAmount ?? 0).toFixed(2)}</Text>
+                                    <label className="form-label" style={{ margin: 0 }}>{t('mines.betAmount')}</label>
+                                    <Text type="secondary" style={{ margin: 0 }}><Coins value={betAmount ?? 0} /></Text>
                                 </div>
                                 <div className="input-row">
                                     <InputNumber
                                         value={betAmount === 0 ? null : betAmount}
                                         onChange={(val) => setBetAmount(Math.max(0, isNaN(Number(val)) ? 0 : Number(val)))}
                                         min={0}
-                                        step={0.00000001}
+                                        step={0.01}
+                                        aria-label={t('mines.betAmountAria')}
                                         disabled={isPlaying}
                                         style={{ flex: 1 }}
                                         controls={false}
                                         formatter={(v) => `${v}`}
-                                        parser={(v) => v.replace(/\$\s?|(,*)/g, '')}
+                                        parser={(v) => v.replace(/,/g, '.')}
                                         addonBefore={
-                                            <div className="dino-currency-icon">₿</div>
+                                            <CoinIcon size={18} />
                                         }
                                     />
                                     <Button.Group className="dino-btn-group">
                                         <Button
                                             onClick={handleBetAmountHalf}
                                             disabled={isPlaying}
+                                            aria-label={t('mines.half')}
                                         >
                                             ½
                                         </Button>
                                         <Button
                                             onClick={handleBetAmountDouble}
                                             disabled={isPlaying}
+                                            aria-label={t('mines.double')}
                                         >
                                             2×
                                         </Button>
@@ -576,10 +589,11 @@ function MinesGame() {
 
                             {/* Mines Selection */}
                             <div className="form-group mobile-sheet-secondary">
-                                <label className="form-label">Mines</label>
+                                <label className="form-label">{t('mines.minesLabel')}</label>
                                 <div className="mines-select-wrapper">
                                     <select
                                         className="mines-select"
+                                        aria-label={t('mines.minesSelectAria')}
                                         value={minesCount}
                                         onChange={handleMinesChange}
                                         disabled={isPlaying}
@@ -593,12 +607,13 @@ function MinesGame() {
 
                             {/* Gems Display */}
                             <div className="form-group mobile-sheet-secondary">
-                                <label className="form-label">Gems</label>
+                                <label className="form-label">{t('mines.gemsLabel')}</label>
                                 <div className="input-with-controls">
                                     <input
                                         type="text"
                                         className="mines-input"
                                         value={25 - minesCount}
+                                        aria-label={t('mines.gemsAria')}
                                         readOnly
                                         disabled={isPlaying}
                                     />
@@ -608,7 +623,7 @@ function MinesGame() {
                             {/* Action Buttons */}
                             {!isPlaying ? (
                                 <button className="btn-bet-mines" onClick={startGame}>
-                                    Bet
+                                    {t('mines.bet')}
                                 </button>
                             ) : (
                                 <>
@@ -617,13 +632,13 @@ function MinesGame() {
                                         onClick={cashout}
                                         disabled={revealedTiles.length === 0}
                                     >
-                                        Cashout
+                                        {t('mines.cashOut')}
                                     </button>
                                     <button
                                         className="btn-random-pick mobile-sheet-secondary"
                                         onClick={pickRandom}
                                     >
-                                        Random Pick
+                                        {t('mines.randomPick')}
                                     </button>
                                 </>
                             )}
@@ -631,20 +646,21 @@ function MinesGame() {
                             {/* Total Profit Display (Updated real-time as you pick) */}
                             <div className="form-group mobile-sheet-secondary" style={{ marginTop: 'auto' }}>
                                 <div className="form-header">
-                                    <label className="form-label" style={{ margin: 0 }}>Total Profit ({currentMultiplier.toFixed(2)}×)</label>
+                                    <label className="form-label" style={{ margin: 0 }}>{t('mines.totalProfit', { multiplier: formatMultiplier(currentMultiplier) })}</label>
                                     <span style={{ color: revealedTiles.length > 0 ? 'var(--success)' : 'var(--text-secondary)' }}>
-                                        ₿{(potentialWin - betAmount).toFixed(8)}
+                                        <Coins value={potentialWin - betAmount} />
                                     </span>
                                 </div>
                                 <div className="input-with-controls">
                                     <input
                                         type="text"
                                         className="mines-input"
-                                        value={revealedTiles.length > 0 ? potentialWin.toFixed(8) : betAmount.toFixed(8)}
+                                        value={formatCoins(revealedTiles.length > 0 ? potentialWin : betAmount)}
+                                        aria-label={t('mines.totalProfitAria')}
                                         readOnly
                                     />
                                     <div className="mines-input-addon">
-                                        <div className="btc-icon-small">₿</div>
+                                        <CoinIcon size={16} />
                                     </div>
                                 </div>
                             </div>
@@ -658,21 +674,24 @@ function MinesGame() {
                             <button
                                 className={`footer-btn ${statsDrawerOpen ? 'active' : ''}`}
                                 onClick={() => setStatsDrawerOpen(true)}
-                                title="Live Stats"
+                                title={t('mines.liveStats')}
+                                aria-label={t('mines.liveStats')}
                             >
                                 <StatsIcon />
                             </button>
                             <button
                                 className={`footer-btn ${historyModalOpen ? 'active' : ''}`}
                                 onClick={() => setHistoryModalOpen(true)}
-                                title="Play History & Dashboard"
+                                title={t('mines.historyTitle')}
+                                aria-label={t('mines.historyTitle')}
                             >
                                 <HistoryIcon />
                             </button>
                             <button
                                 className="footer-btn"
                                 onClick={() => setFairnessModalOpen(true)}
-                                title="Provably Fair"
+                                title={t('mines.fairnessModal.title')}
+                                aria-label={t('mines.fairnessModal.title')}
                             >
                                 <SafetyCertificateOutlined style={{ fontSize: 18 }} />
                             </button>
@@ -684,7 +703,7 @@ function MinesGame() {
                 {/* Game Display Wrapper */}
                 <div className="mines-display-wrapper">
                     <div className="mines-display">
-                        <div className="mines-grid">
+                        <div className="mines-grid" role="group" aria-label={t('mines.board')}>
                             {renderGrid()}
                         </div>
                     </div>
@@ -695,31 +714,31 @@ function MinesGame() {
                             <div className="widget-header debug-widget-header" onMouseDown={handleDebugDragStart}>
                                 <div className="widget-title">
                                     <BugOutlined style={{ color: 'var(--primary)', fontSize: 18 }} />
-                                    <span style={{ color: 'var(--primary)' }}>FAIRNESS DEBUG</span>
+                                    <span style={{ color: 'var(--primary)' }}>{t('mines.debug.title')}</span>
                                 </div>
                                 <div className="widget-actions">
-                                    <button className="widget-btn-icon" onMouseDown={(e) => e.stopPropagation()} onClick={() => setIsDebugMode(false)}>
+                                    <button className="widget-btn-icon" aria-label={t('mines.debug.close')} onMouseDown={(e) => e.stopPropagation()} onClick={() => setIsDebugMode(false)}>
                                         <CloseOutlined />
                                     </button>
                                 </div>
                             </div>
                             <div className="widget-content debug-widget-content">
                                 <div className="debug-row">
-                                    <span className="debug-label">Next Hash:</span>
+                                    <span className="debug-label">{t('mines.debug.nextHash')}</span>
                                     <span className="debug-value">{debugData.hash.substring(0, 16)}...</span>
                                 </div>
                                 <div className="debug-row">
-                                    <span className="debug-label">Client Seed:</span>
+                                    <span className="debug-label">{t('mines.debug.clientSeed')}</span>
                                     <span className="debug-value">{fairnessData.clientSeed?.substring(0, 10)}...</span>
                                 </div>
                                 <div className="debug-row">
-                                    <span className="debug-label">Next Nonce:</span>
+                                    <span className="debug-label">{t('mines.debug.nextNonce')}</span>
                                     <span className="debug-value">{debugData.nonce}</span>
                                 </div>
                                 <div className="debug-target">
-                                    MINES: <span className="target-bin">{minesCount}</span>
+                                    {t('mines.debug.mines')} <span className="target-bin">{minesCount}</span>
                                     <div style={{ fontSize: 13, color: '#fff', marginTop: 4, textShadow: 'none' }}>
-                                        Positions: <span style={{ color: '#ff4d4f' }}>[{debugData.minePositions.join(', ')}]</span>
+                                        {t('mines.debug.positions')} <span style={{ color: '#ff4d4f' }}>[{debugData.minePositions.join(', ')}]</span>
                                     </div>
                                 </div>
                                 <div className="mines-debug-grid">
@@ -736,28 +755,29 @@ function MinesGame() {
                     {/* Bottom Controls */}
                     <div className="game-controls">
                         <Space>
-                            <Tooltip title="Settings">
-                                <Button type="text" icon={<SettingOutlined />} className="control-btn" />
+                            <Tooltip title={t('mines.controls.settings')}>
+                                <Button type="text" icon={<SettingOutlined />} className="control-btn" aria-label={t('mines.controls.settings')} />
                             </Tooltip>
-                            <Tooltip title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}>
-                                <Button type="text" icon={isFullscreen ? <FullscreenExitOutlined /> : <ExpandOutlined />} className="control-btn" onClick={toggleFullscreen} />
+                            <Tooltip title={isFullscreen ? t('mines.controls.exitFullscreen') : t('mines.controls.fullscreen')}>
+                                <Button type="text" icon={isFullscreen ? <FullscreenExitOutlined /> : <ExpandOutlined />} className="control-btn" aria-label={isFullscreen ? t('mines.controls.exitFullscreen') : t('mines.controls.fullscreen')} onClick={toggleFullscreen} />
                             </Tooltip>
-                            <Tooltip title={soundEnabled ? "Mute" : "Unmute"}>
-                                <Button type="text" icon={<SoundOutlined />} className={`control-btn ${!soundEnabled ? 'muted' : ''}`} onClick={() => setSoundEnabled(!soundEnabled)} />
+                            <Tooltip title={soundEnabled ? t('mines.controls.mute') : t('mines.controls.unmute')}>
+                                <Button type="text" icon={<SoundOutlined />} className={`control-btn ${!soundEnabled ? 'muted' : ''}`} aria-label={soundEnabled ? t('mines.controls.mute') : t('mines.controls.unmute')} onClick={() => setSoundEnabled(!soundEnabled)} />
                             </Tooltip>
-                            <Tooltip title={isDebugMode ? "Disable Debug" : "Enable Debug (Peek Fairness)"}>
+                            <Tooltip title={isDebugMode ? t('mines.controls.disableDebug') : t('mines.controls.enableDebug')}>
                                 <Button
                                     type="text"
                                     icon={<BugOutlined />}
                                     className={`control-btn ${isDebugMode ? 'active-debug' : ''}`}
+                                    aria-label={isDebugMode ? t('mines.controls.disableDebug') : t('mines.controls.enableDebug')}
                                     style={{ color: isDebugMode ? 'var(--primary)' : undefined }}
                                     onClick={() => setIsDebugMode(!isDebugMode)}
                                 />
                             </Tooltip>
                         </Space>
-                        <span className="logo" style={{ color: 'var(--text-primary)' }}>Stake</span>
+                        <span className="logo"><Logo size={22} /></span>
                         <Button type="text" icon={<SafetyCertificateOutlined />} className="fairness-btn" onClick={() => setFairnessModalOpen(true)}>
-                            Fairness
+                            {t('mines.fairness')}
                         </Button>
                     </div>
                 </div>
@@ -767,7 +787,7 @@ function MinesGame() {
                 title={
                     <Space>
                         <SafetyCertificateOutlined style={{ color: 'var(--primary)' }} />
-                        <span>Provably Fair</span>
+                        <span>{t('mines.fairnessModal.title')}</span>
                     </Space>
                 }
                 open={fairnessModalOpen}
@@ -784,13 +804,13 @@ function MinesGame() {
                 <div className="fairness-header">
                     <Title level={5}>
                         <CheckCircleOutlined style={{ marginRight: 8 }} />
-                        This game is provably fair
+                        {t('mines.fairnessModal.headline')}
                     </Title>
-                    <Paragraph>Uses HMAC-SHA256 to generate the exact positions of the mines from a server seed and your client seed.</Paragraph>
+                    <Paragraph>{t('mines.fairnessModal.description')}</Paragraph>
                 </div>
 
                 <div className="fairness-item">
-                    <span className="fairness-label">Server Seed (Hash)</span>
+                    <span className="fairness-label">{t('games.serverSeedHash')}</span>
                     <div className="fairness-value">
                         <Text copyable={{ text: fairnessData.serverSeedHash }} style={{ fontSize: 11, wordBreak: 'break-all' }}>
                             {fairnessData.serverSeedHash?.slice(0, 24)}...
@@ -799,7 +819,7 @@ function MinesGame() {
                 </div>
 
                 <div className="fairness-item">
-                    <span className="fairness-label">Client Seed</span>
+                    <span className="fairness-label">{t('games.clientSeed')}</span>
                     <div className="fairness-value" style={{ display: 'flex', gap: 6 }}>
                         <Input
                             size="small"
@@ -807,12 +827,12 @@ function MinesGame() {
                             onChange={e => setClientSeedInput(e.target.value)}
                             style={{ background: '#2f4553', border: 'none', color: '#fff', flex: 1, fontSize: 12 }}
                         />
-                        <Button size="small" onClick={handleChangeClientSeed} icon={<CheckCircleOutlined />} />
+                        <Button size="small" onClick={handleChangeClientSeed} icon={<CheckCircleOutlined />} aria-label={t('mines.fairnessModal.applySeed')} title={t('mines.fairnessModal.applySeed')} />
                     </div>
                 </div>
 
                 <div className="fairness-item">
-                    <span className="fairness-label">Nonce</span>
+                    <span className="fairness-label">{t('games.nonce')}</span>
                     <div className="fairness-value">
                         <Text style={{ background: 'rgba(47, 69, 83, 0.5)', padding: '4px 12px', borderRadius: 6, color: '#fff' }}>
                             {fairnessData.nonce}
@@ -821,9 +841,9 @@ function MinesGame() {
                 </div>
 
                 <div className="fairness-item">
-                    <span className="fairness-label">Mines Count</span>
+                    <span className="fairness-label">{t('mines.fairnessModal.minesCount')}</span>
                     <div className="fairness-value">
-                        <Tag color="error">{minesCount} mines</Tag>
+                        <Tag color="error">{t('mines.minesCount', { count: minesCount })}</Tag>
                     </div>
                 </div>
 
@@ -832,7 +852,7 @@ function MinesGame() {
                 {revealedSeed && (
                     <div style={{ marginBottom: 12 }}>
                         <Text type="secondary" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                            Previous Server Seed (Revealed)
+                            {t('mines.fairnessModal.previousSeed')}
                         </Text>
                         <div style={{ background: '#0f212e', borderRadius: 6, padding: '8px 12px', marginTop: 4 }}>
                             <Text copyable={{ text: revealedSeed.serverSeed }} style={{ fontSize: 10, wordBreak: 'break-all', color: '#4ade80' }}>
@@ -844,10 +864,10 @@ function MinesGame() {
 
                 <div style={{ display: 'flex', gap: 8 }}>
                     <Button onClick={handleRotateSeed} style={{ flex: 1, background: '#2f4553', border: 'none', color: '#fff' }}>
-                        <ReloadOutlined /> Rotate Seed
+                        <ReloadOutlined /> {t('games.rotateSeed')}
                     </Button>
                     <Button type="primary" onClick={() => setFairnessModalOpen(false)} style={{ flex: 1, background: 'var(--primary)', border: 'none', color: '#000', fontWeight: 'bold' }}>
-                        Close
+                        {t('mines.close')}
                     </Button>
                 </div>
             </Modal>
@@ -869,36 +889,36 @@ function MinesGame() {
                     <div className="icon-wrapper">
                         <HistoryIcon />
                     </div>
-                    Dashboard & Play History
+                    {t('mines.historyTitle')}
                 </div>
 
                 <div className="history-window-content" style={{ marginTop: '24px' }}>
 
                     <div className="dashboard-section">
-                        <h3 className="section-title">Lifetime Stats</h3>
+                        <h3 className="section-title">{t('mines.stats.lifetime')}</h3>
                         <div className="glass-panel">
                             <Row gutter={[24, 24]}>
                                 <Col span={8}>
                                     <Statistic
-                                        title={<span style={{ color: '#94a3b8' }}>Total Profit</span>}
+                                        title={<span style={{ color: '#94a3b8' }}>{t('mines.stats.totalProfit')}</span>}
                                         value={totalProfit}
-                                        precision={2}
-                                        prefix="₿"
+                                        formatter={(v) => formatCoins(v)}
+                                        prefix={<CoinIcon size={18} />}
                                         valueStyle={{ color: totalProfit >= 0 ? '#4ade80' : '#f87171', fontWeight: 'bold' }}
                                     />
                                 </Col>
                                 <Col span={8}>
                                     <Statistic
-                                        title={<span style={{ color: '#94a3b8' }}>Total Bets</span>}
+                                        title={<span style={{ color: '#94a3b8' }}>{t('mines.stats.totalBets')}</span>}
                                         value={winsCount + lossesCount}
                                         valueStyle={{ color: '#f8fafc', fontWeight: 'bold' }}
                                     />
                                 </Col>
                                 <Col span={8}>
                                     <Statistic
-                                        title={<span style={{ color: '#94a3b8' }}>Win Rate</span>}
+                                        title={<span style={{ color: '#94a3b8' }}>{t('mines.stats.winRate')}</span>}
                                         value={winsCount + lossesCount > 0 ? (winsCount / (winsCount + lossesCount) * 100) : 0}
-                                        precision={1}
+                                        formatter={(v) => formatNumber(v, 1)}
                                         suffix="%"
                                         valueStyle={{ color: '#fbbf24', fontWeight: 'bold' }}
                                     />
@@ -909,11 +929,12 @@ function MinesGame() {
 
                     <div className="dashboard-section">
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                            <h3 className="section-title" style={{ margin: 0 }}>Recent Plays</h3>
-                            <Tooltip title="Reset stats">
+                            <h3 className="section-title" style={{ margin: 0 }}>{t('mines.stats.recent')}</h3>
+                            <Tooltip title={t('mines.stats.resetStats')}>
                                 <Button
                                     type="text"
                                     icon={<ReloadOutlined style={{ color: '#94a3b8' }} />}
+                                    aria-label={t('mines.stats.resetStats')}
                                     onClick={() => {
                                         setWinRecords([]);
                                         setWinsCount(0);
@@ -928,7 +949,7 @@ function MinesGame() {
                             {winRecords.length === 0 ? (
                                 <div style={{ textAlign: 'center', padding: '40px 0', color: '#64748b' }}>
                                     <HistoryIcon style={{ fontSize: 48, opacity: 0.2, marginBottom: 16 }} />
-                                    <p>No recent plays. Place a bet to start!</p>
+                                    <p>{t('mines.stats.empty')}</p>
                                 </div>
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -942,7 +963,7 @@ function MinesGame() {
                                             borderRadius: '8px'
                                         }}>
                                             <span style={{ color: '#94a3b8', fontSize: '13px' }}>
-                                                {record > 0 ? 'Win' : 'Loss'}
+                                                {record > 0 ? t('mines.stats.win') : t('mines.stats.loss')}
                                             </span>
                                             <span style={{
                                                 color: record > 0 ? '#4ade80' : '#f87171',
@@ -950,7 +971,7 @@ function MinesGame() {
                                                 fontFamily: 'monospace',
                                                 fontSize: '15px'
                                             }}>
-                                                {record > 0 ? '+' : ''}₿{record.toFixed(2)}
+                                                {record > 0 ? '+' : ''}<Coins value={record} />
                                             </span>
                                         </div>
                                     ))}
@@ -967,11 +988,11 @@ function MinesGame() {
                     <div className="widget-header" onMouseDown={handleDragStart}>
                         <div className="widget-title">
                             <LineChartOutlined style={{ fontSize: 20, color: '#94a3b8' }} />
-                            <span>Live Stats</span>
+                            <span>{t('mines.liveStats')}</span>
                         </div>
                         <div className="widget-actions">
-                            <Tooltip title="Reset Live Stats" placement="topRight">
-                                <button className="widget-btn-icon" onMouseDown={(e) => e.stopPropagation()} onClick={() => {
+                            <Tooltip title={t('mines.stats.resetLive')} placement="topRight">
+                                <button className="widget-btn-icon" aria-label={t('mines.stats.resetLive')} onMouseDown={(e) => e.stopPropagation()} onClick={() => {
                                     setWinRecords([]);
                                     setWinsCount(0);
                                     setLossesCount(0);
@@ -981,12 +1002,12 @@ function MinesGame() {
                                     <ReloadOutlined />
                                 </button>
                             </Tooltip>
-                            <Tooltip title="View History" placement="topRight">
-                                <button className="widget-btn-icon" onMouseDown={(e) => e.stopPropagation()} onClick={() => { setHistoryModalOpen(true); setStatsDrawerOpen(false); }}>
+                            <Tooltip title={t('mines.stats.viewHistory')} placement="topRight">
+                                <button className="widget-btn-icon" aria-label={t('mines.stats.viewHistory')} onMouseDown={(e) => e.stopPropagation()} onClick={() => { setHistoryModalOpen(true); setStatsDrawerOpen(false); }}>
                                     <RightOutlined />
                                 </button>
                             </Tooltip>
-                            <button className="widget-btn-icon" onMouseDown={(e) => e.stopPropagation()} onClick={() => setStatsDrawerOpen(false)}>
+                            <button className="widget-btn-icon" aria-label={t('mines.close')} onMouseDown={(e) => e.stopPropagation()} onClick={() => setStatsDrawerOpen(false)}>
                                 <CloseOutlined />
                             </button>
                         </div>
@@ -996,30 +1017,30 @@ function MinesGame() {
                         {/* Profit Overview */}
                         <div className="profit-box">
                             <div className="profit-main">
-                                <p className="label">Profit</p>
+                                <p className="label">{t('mines.stats.profit')}</p>
                                 <p className="value" style={{ color: totalProfit >= 0 ? '#4ade80' : '#f87171' }}>
-                                    {totalProfit >= 0 ? '+' : ''}₿{totalProfit.toFixed(2)}
+                                    {totalProfit >= 0 ? '+' : ''}<Coins value={totalProfit} />
                                 </p>
                             </div>
                             <div className="profit-divider"></div>
                             <div className="profit-stats">
                                 <div className="stat-row">
-                                    <p className="label">Wins</p>
-                                    <p className="value" style={{ color: '#4ade80' }}>{winsCount.toLocaleString()}</p>
+                                    <p className="label">{t('mines.stats.wins')}</p>
+                                    <p className="value" style={{ color: '#4ade80' }}>{formatNumber(winsCount)}</p>
                                 </div>
                                 <div className="stat-row">
-                                    <p className="label">Losses</p>
-                                    <p className="value" style={{ color: '#f87171' }}>{lossesCount.toLocaleString()}</p>
+                                    <p className="label">{t('mines.stats.losses')}</p>
+                                    <p className="value" style={{ color: '#f87171' }}>{formatNumber(lossesCount)}</p>
                                 </div>
                             </div>
                         </div>
 
                         {/* Chart.js Container */}
                         <div className="chart-box" onMouseLeave={() => setHoveredProfitValue(null)}>
-                            <p className="label">Profit History</p>
+                            <p className="label">{t('mines.stats.profitHistory')}</p>
                             {hoveredProfitValue !== null && (
                                 <p className="hovered-value" style={{ color: hoveredProfitValue >= 0 ? '#4ade80' : '#f87171' }}>
-                                    {hoveredProfitValue >= 0 ? '+' : ''}₿{hoveredProfitValue.toFixed(2)}
+                                    {hoveredProfitValue >= 0 ? '+' : ''}<Coins value={hoveredProfitValue} />
                                 </p>
                             )}
                             <div className="canvas-wrapper">
