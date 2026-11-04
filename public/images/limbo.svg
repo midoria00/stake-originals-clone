@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="400" viewBox="0 0 320 400" role="img" aria-label="Limbo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#14202f"/><stop offset="1" stop-color="#080d14"/></linearGradient>
+    <linearGradient id="amber" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd772"/><stop offset="1" stop-color="#f2a516"/></linearGradient>
+    <linearGradient id="line" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#16b866"/><stop offset="1" stop-color="#5ef0a4"/></linearGradient>
+  </defs>
+  <rect width="320" height="400" fill="url(#bg)"/>
+  <circle cx="60" cy="80" r="100" fill="#1fd67a" opacity="0.08"/>
+  <circle cx="280" cy="330" r="110" fill="#ffb547" opacity="0.07"/>
+  <g stroke="#2c3f57" stroke-width="1" opacity="0.8">
+    <line x1="40" y1="240" x2="280" y2="240"/><line x1="40" y1="200" x2="280" y2="200"/><line x1="40" y1="160" x2="280" y2="160"/><line x1="40" y1="120" x2="280" y2="120"/>
+  </g>
+  <path d="M40 270 C120 262 190 235 232 150 C246 122 256 100 262 70" fill="none" stroke="url(#line)" stroke-width="7" stroke-linecap="round"/>
+  <path d="M250 84 L262 62 L278 80" fill="none" stroke="#5ef0a4" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="40" y1="160" x2="280" y2="160" stroke="url(#amber)" stroke-width="3" stroke-dasharray="8 7"/>
+  <text x="160" y="318" text-anchor="middle" font-family="Manrope, Inter, Arial, sans-serif" font-weight="800" font-size="44" fill="#ffb547">1.000.000×</text>
+  <text x="160" y="368" text-anchor="middle" font-family="Manrope, Inter, Arial, sans-serif" font-weight="800" font-size="30" fill="#f3f7fb" letter-spacing="3">LIMBO</text>
+</svg>
