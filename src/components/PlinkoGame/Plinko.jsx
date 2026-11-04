@@ -2,18 +2,9 @@
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import PlinkoEngine from './PlinkoEngine';
 import { getBinColors, BIN_PAYOUTS } from './constants';
+import { loadOutcomes } from './outcomes';
 import { t } from '../../i18n';
 import './Plinko.css';
-
-let outcomesPromise;
-
-function loadOutcomes() {
-    outcomesPromise ||= fetch('/plinko-outcomes.json').then((response) => {
-        if (!response.ok) throw new Error('Unable to load Plinko outcomes');
-        return response.json();
-    });
-    return outcomesPromise;
-}
 
 function BinsRow({ rowCount, riskLevel, winRecords, binsWidthPercentage }) {
     const binsRef = useRef([]);
@@ -120,14 +111,14 @@ function Plinko({
         let cancelled = false;
         let engine;
 
-        loadOutcomes().then((outcomes) => {
+        loadOutcomes(rowCount).then((bins) => {
             if (cancelled || !canvasRef.current) return;
 
             engine = new PlinkoEngine(canvasRef.current, {
                 rowCount,
                 riskLevel,
                 betAmount,
-                outcomes,
+                outcomes: { [rowCount]: bins },
                 onBallEnterBin: (data) => {
                     onBallEnterBin?.(data);
                 },
@@ -155,12 +146,19 @@ function Plinko({
         };
     }, []);
 
-    // Update row count
+    // Update row count: fetch that row's drop positions first, so no ball drops on a board without them.
     useEffect(() => {
-        if (plinkoEngine) {
+        if (!plinkoEngine || plinkoEngine.rowCount === rowCount) return;
+        let cancelled = false;
+        loadOutcomes(rowCount).then((bins) => {
+            if (cancelled) return;
+            plinkoEngine.outcomes[rowCount] = bins;
             plinkoEngine.updateRowCount(rowCount);
             setBinsWidthPercentage(plinkoEngine.binsWidthPercentage);
-        }
+        }).catch(() => {
+            if (!cancelled) setLoadFailed(true);
+        });
+        return () => { cancelled = true; };
     }, [rowCount, plinkoEngine]);
 
     // Update risk level

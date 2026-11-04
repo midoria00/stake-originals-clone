@@ -424,6 +424,8 @@ function PlinkoGame() {
 
     // Drop ball
     const handleDropBall = useCallback(async (isCancelled) => {
+        // The board switches rows only after that row's drop positions are loaded; wait until it matches.
+        if (engineRef.current && engineRef.current.rowCount !== rowCount) return 'busy';
         const result = await dropPlinkoBall({
             engine: engineRef.current,
             pendingDrops: pendingDropsRef,
