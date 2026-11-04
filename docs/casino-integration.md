@@ -2,19 +2,19 @@
 
 Situação verificada em 2026-11-04. Fontes e citações: [`casino-providers-research.md`](./casino-providers-research.md) (19 provedores) e [`casino-aggregators-research.md`](./casino-aggregators-research.md) (agregadores, integração direta e regras do Brasil).
 
-As fontes públicas para popular o catálogo (slot.report, AG Game API, gig-casino, iGaming Tools, site da PG Soft) estão analisadas em [`casino-sources-review.md`](./casino-sources-review.md): só o slot.report permite redistribuir os dados, e o acesso a ele depende de uma chave que exige cadastro.
+As fontes públicas para popular o catálogo (slot.report, AG Game API, gig-casino, iGaming Tools, site da PG Soft) estão analisadas em [`casino-sources-review.md`](./casino-sources-review.md): só o slot.report permite redistribuir os dados. O catálogo dele foi importado em 04/11/2026: 1.735 jogos de 7 provedores cadastrados, só metadados.
 
 ## Números exatos desta versão
 
 | Item | Quantidade |
 |---|---|
 | Provedores cadastrados | 19 |
-| Provedores integrados (com catálogo autorizado importado) | 0 |
-| Jogos de terceiros catalogados | 0 |
+| Provedores com catálogo importado (na interface, "Catálogo importado") | 7 |
+| Jogos de terceiros catalogados (metadados do slot.report, sem imagens nem demos) | 1.735 |
 | Jogos de terceiros executáveis em demonstração autorizada | 0 |
 | Jogos próprios (123bet Originals), todos executáveis | 6 |
 
-A interface de provedores, catálogo e abertura de jogos está pronta, mas **nenhum jogo de terceiros funciona**: não existe contrato, catálogo autorizado, credencial nem permissão de incorporação.
+A interface de provedores, catálogo e abertura de jogos está pronta e o catálogo tem dados reais, mas **nenhum jogo de terceiros pode ser jogado**: não existe contrato, credencial nem permissão de incorporação. Cada jogo importado aparece como "Só catálogo".
 
 ## Por que nada de terceiros roda hoje
 
@@ -46,13 +46,13 @@ Código do servidor em `server/casino/`, rotas em `api/casino/` e `api/admin/`. 
 | `service.js` | Calcula os status (cadastrado, integrado, executável), consulta jogos e decide a abertura. Nunca envia ao navegador URLs de demo nem configuração. |
 | `http.js` | Respostas JSON com limite por IP. Cache de CDN de 5 minutos para provedores e jogos; abertura sem cache. |
 | `admin.js` | Status administrativo somente leitura, desativado sem `ADMIN_TOKEN` (32+ caracteres). Responde 404 quando desativado e 401 para token errado; tentativas limitadas por IP. |
-| `data/catalog.json` | Catálogo importado (vazio). |
+| `data/catalog.json` | Catálogo importado: 1.735 jogos do slot.report (nome, provedor, categoria, RTP, volatilidade, ganho máximo, características e lançamento). |
 | `scripts/casino/importCatalog.mjs` | Importa um catálogo autorizado e registra fonte, arquivo e referência da autorização. |
 
 ### Status
 
 - **Cadastrado:** está em `providers.js`.
-- **Integrado:** tem jogos importados de um catálogo autorizado.
+- **Integrado** (na interface, "Catálogo importado"): tem jogos importados de um catálogo com permissão de uso. Isso não é integração com o provedor e não permite abrir jogos.
 - **Executável:** tem ao menos um jogo cuja demonstração pode ser aberta com a configuração atual do servidor. Isso exige uma URL oficial de demo vinda do catálogo autorizado, num domínio liberado em `CASINO_DEMO_ORIGINS`, ou um adaptador implementado e configurado.
 
 ### Abertura de jogos

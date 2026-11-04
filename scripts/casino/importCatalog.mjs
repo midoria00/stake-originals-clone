@@ -27,6 +27,17 @@ export function parseArgs(argv) {
     return args
 }
 
+// slot.report "mechanic" values that name a non-slot game type; everything else is a slot (it is a slot database).
+const SLOT_REPORT_MECHANICS = { plinko: 'plinko', crash: 'crash', roulette: 'roulette', blackjack: 'blackjack', scratch: 'instant', 'instant win': 'instant', instantwin: 'instant' }
+
+const decodeAmp = (value) => (typeof value === 'string' ? value.replace(/&amp;/g, '&') : value)
+
+// The feed mixes "2021-02-25" with "25.02.2021" (day first: every such date matches the record's "year").
+const slotReportDate = (value) => {
+    const dmy = typeof value === 'string' && /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(value)
+    return dmy ? `${dmy[3]}-${dmy[2]}-${dmy[1]}` : value
+}
+
 // slot.report /api/v1/slots.json, fields as documented at https://slot.report/api/ -> catalog fields.
 // Its "slug" is kept as the original id; it has no images and no demos.
 export function fromSlotReport(input) {
@@ -35,13 +46,13 @@ export function fromSlotReport(input) {
     return results.map((slot) => ({
         provider: slot?.provider_slug || slot?.provider,
         externalId: slot?.slug,
-        name: slot?.name,
-        category: 'slots',
+        name: decodeAmp(slot?.name),
+        category: SLOT_REPORT_MECHANICS[String(slot?.mechanic ?? '').trim().toLowerCase()] ?? 'slots',
         rtp: slot?.rtp,
         volatility: slot?.volatility,
-        features: slot?.features,
+        features: Array.isArray(slot?.features) ? slot.features.map(decodeAmp) : slot?.features,
         maxWin: slot?.max_win,
-        releasedAt: slot?.release_date,
+        releasedAt: slotReportDate(slot?.release_date),
     }))
 }
 

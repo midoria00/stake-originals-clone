@@ -83,10 +83,14 @@ test('index: accent-insensitive search, provider and category filters, sorting a
     assert.deepEqual(queryGames(index, { ids: ['123bet:crash', 'nada'] }).items.map((g) => g.id), ['123bet:crash'])
 })
 
-test('service with the shipped catalog: 19 registered, 0 integrated, 0 executable', () => {
-    const service = createCasinoService({ env: {}, catalog: loadCatalog() })
+test('service with the shipped catalog: imported metadata only, nothing third-party executable', () => {
+    const catalog = loadCatalog()
+    const service = createCasinoService({ env: {}, catalog })
     const { totals, inHouse, sources } = service.providers()
-    assert.deepEqual(totals, { registered: 19, integrated: 0, executable: 0, externalGames: 0, executableGames: 0 })
+    const { games } = catalog
+    assert.deepEqual(totals, { registered: 19, integrated: new Set(games.map((g) => g.provider)).size, executable: 0, externalGames: games.length, executableGames: 0 })
+    assert.ok(games.every((g) => g.integrationStatus === 'catalog_only' && !g.demo.available && g.image === null), 'no demos or images in the shipped catalog')
+    assert.ok(games.every((g) => catalog.imports.some((i) => i.source === g.source)), 'every game has an import record')
     assert.equal(inHouse.games, 6)
     assert.ok(sources.every((s) => s.status === 'not_configured' || s.status === 'manual'))
 })
@@ -193,4 +197,35 @@ test('slot.report import keeps the original slug and documented fields, with no 
     assert.throws(() => fromSlotReport({}), /results/)
     const service = createCasinoService({ env: {}, catalog: loadCatalog(catalog) })
     assert.deepEqual(service.launch(new URLSearchParams('game=pragmatic-play:slot-de-teste-um')), { available: false, reason: 'demo_unavailable' })
+})
+
+// Quirks seen in the real slots.json of 2026-11-04 (test-only names).
+test('slot.report quirks: day-first dates, title variants, malformed features, game type, placeholder pages', () => {
+    const pp = { provider: 'Pragmatic Play', provider_slug: 'pragmatic-play' }
+    const entries = fromSlotReport({ results: [
+        { ...pp, name: 'Teste’s Tower', slug: 'teste-s-tower', release_date: '05.06.2018', features: ['Hold &amp; Spin'] },
+        { ...pp, name: "Teste's Tower", slug: 'testes-tower', rtp: 96.5, volatility: 'high', max_win: 5000, release_date: '' },
+        { ...pp, name: 'Outro Teste', slug: 'outro-teste', rtp: 96.1, max_win: 2.5, mechanic: 'roulette' },
+        { ...pp, name: 'Outro Teste Slot by Pragmatic Play', slug: 'outro-teste-slot-by-pragmatic-play', rtp: 96.1 },
+        { ...pp, name: 'Teste Plus', slug: 'teste-plus', mechanic: null, features: ['000x\nPlayers can adjust', 'the chicken can randomly crash'] },
+        { ...pp, name: 'Play Demo', slug: 'play-demo', rtp: 96.5 },
+        { name: '麻將測試', slug: 'teste-cjk-1', provider: 'PG Soft', provider_slug: 'pg-soft' },
+        { name: '龍虎測試', slug: 'teste-cjk-2', provider: 'PG Soft', provider_slug: 'pg-soft' },
+    ] })
+    const { catalog, record, rejected } = mergeCatalog({ games: [], imports: [] }, { source: 'slot-report', entries, authorization: 'slot.report API Terms (12/04/2026)' })
+    assert.deepEqual([record.accepted, record.rejected, record.duplicates], [7, 1, 2])
+    assert.match(rejected[0].error, /nome de página/)
+    const byId = Object.fromEntries(catalog.games.map((g) => [g.externalId, g]))
+    // The variant with more documented fields wins; "05.06.2018" is 5 June, never May 6.
+    assert.equal(byId['testes-tower'].rtp.max, 96.5)
+    assert.equal(byId['teste-s-tower'], undefined)
+    assert.equal(normalizeGame(entries[0], 'slot-report').game.releasedAt, '2018-06-05')
+    assert.deepEqual(normalizeGame(entries[0], 'slot-report').game.features, ['Hold & Spin'])
+    assert.equal(byId['outro-teste'].category, 'roulette')
+    assert.equal(byId['outro-teste'].maxWin, 2.5)
+    assert.equal(byId['outro-teste-slot-by-pragmatic-play'], undefined)
+    assert.deepEqual(byId['teste-plus'].features, [], 'a list with description fragments is dropped whole')
+    assert.equal(byId['teste-plus'].category, 'slots')
+    assert.ok(byId['teste-cjk-1'] && byId['teste-cjk-2'], 'non-Latin titles do not collapse into one')
+    assert.equal(normalizeGame({ provider: 'pg-soft', externalId: 'x', name: 'X', releasedAt: '2021-02-30' }, 'slot-report').game.releasedAt, null)
 })
