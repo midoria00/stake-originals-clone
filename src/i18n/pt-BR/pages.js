@@ -17,6 +17,8 @@ export default {
         subtitle: 'Jogos e campeonatos que você marcou com estrela.',
         games: 'Jogos',
         leagues: 'Campeonatos',
+        providerGames: 'Jogos de provedores',
+        providerGamesGone: 'Estes jogos não estão mais no catálogo.',
         emptyGames: 'Toque na estrela de um jogo para guardá-lo aqui.',
         emptyLeagues: 'Marque um campeonato com a estrela na página de futebol para vê-lo aqui.',
         clearGames: 'Limpar jogos favoritos',

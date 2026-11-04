@@ -15,7 +15,11 @@ import '../styles/layout.css'
 const BetSlip = lazy(() => import('../sports/BetSlip'))
 
 const PAGE_TITLES = {
+    '/cassino/jogos': 'nav.allGames',
+    '/cassino/provedores': 'nav.providers',
+    '/cassino/jogo': 'nav.casino',
     '/cassino': 'nav.casino',
+    '/admin': 'casino.admin.title',
     '/sports': 'nav.sports',
     '/favoritos': 'nav.favorites',
     '/recentes': 'nav.recent',

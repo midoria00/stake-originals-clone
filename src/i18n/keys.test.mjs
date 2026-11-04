@@ -32,6 +32,8 @@ test('i18n: every static translation key used in src exists in pt-BR', async () 
 test('i18n: interpolation and plurals', () => {
     assert.equal(t('pages.casino.count', { count: 1 }), '1 jogo')
     assert.equal(t('pages.casino.count', { count: 6 }), '6 jogos')
+    assert.equal(t('casino.results', { count: 0 }), '0 jogos encontrados', 'zero reads as plural in pt-BR')
+    assert.equal(t('casino.results', { count: 1 }), '1 jogo encontrado')
     assert.equal(t('common.noResults', { query: 'x' }), 'Nenhum resultado para "x".')
     assert.equal(t('does.not.exist'), 'does.not.exist')
 })

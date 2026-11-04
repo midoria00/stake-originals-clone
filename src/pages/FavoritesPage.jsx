@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Star, Trophy, X } from 'lucide-react'
+import { useGameList } from '../casino/api'
+import { CatalogGrid } from '../casino/components'
 import { GameGrid } from '../components/GameCard'
 import Page, { EmptyState } from '../components/Page'
 import { getGame } from '../games'
@@ -10,6 +12,9 @@ export default function FavoritesPage() {
     const favorites = useFavoriteGames()
     const leagues = useFavoriteLeagues()
     const games = favorites.ids.map(getGame).filter(Boolean)
+    // Catalog games are stored as "provider:externalId" and looked up on the server.
+    const catalogIds = favorites.ids.filter((id) => id.includes(':'))
+    const catalog = useGameList({ ids: catalogIds.join(','), skip: catalogIds.length === 0 })
 
     return (
         <Page title={t('pages.favorites.title')} subtitle={t('pages.favorites.subtitle')}>
@@ -22,6 +27,13 @@ export default function FavoritesPage() {
                     ? <GameGrid games={games} />
                     : <EmptyState icon={Star} text={t('pages.favorites.emptyGames')} action={<Link className="button button--primary" to="/cassino">{t('pages.favorites.seeGames')}</Link>} />}
             </section>
+
+            {catalogIds.length > 0 && (
+                <section className="page-section" aria-labelledby="fav-catalog">
+                    <div className="page-section__head"><h2 id="fav-catalog">{t('pages.favorites.providerGames')}</h2></div>
+                    <CatalogGrid list={catalog} emptyText={t('pages.favorites.providerGamesGone')} />
+                </section>
+            )}
 
             <section className="page-section" aria-labelledby="fav-leagues">
                 <div className="page-section__head">

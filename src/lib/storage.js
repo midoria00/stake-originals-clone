@@ -45,7 +45,8 @@ export function useStoredState(key, fallback, validate) {
     return [value, update]
 }
 
-const isIdList = (value) => Array.isArray(value) && value.every((id) => typeof id === 'string' && id.length <= 40)
+// Originals use short ids ("crash"); catalog games use "provider:externalId".
+const isIdList = (value) => Array.isArray(value) && value.every((id) => typeof id === 'string' && id.length <= 100)
 const isRecentList = (value) => Array.isArray(value) && value.every((item) => item && typeof item.id === 'string' && typeof item.at === 'string')
 const isLeagueList = (value) => Array.isArray(value) && value.every((item) => item && typeof item.id === 'string' && item.id.length <= 40 && typeof item.name === 'string' && item.name.length <= 80)
 
