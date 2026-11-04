@@ -2,6 +2,8 @@
 
 Situação verificada em 2026-11-04. Fontes e citações: [`casino-providers-research.md`](./casino-providers-research.md) (19 provedores) e [`casino-aggregators-research.md`](./casino-aggregators-research.md) (agregadores, integração direta e regras do Brasil).
 
+As fontes públicas para popular o catálogo (slot.report, AG Game API, gig-casino, iGaming Tools, site da PG Soft) estão analisadas em [`casino-sources-review.md`](./casino-sources-review.md): só o slot.report permite redistribuir os dados, e o acesso a ele depende de uma chave que exige cadastro.
+
 ## Números exatos desta versão
 
 | Item | Quantidade |
