@@ -16,11 +16,9 @@ import {
     Badge
 } from 'antd';
 import {
-    SettingOutlined,
     ExpandOutlined,
     BarChartOutlined,
     SafetyCertificateOutlined,
-    SoundOutlined,
     FullscreenExitOutlined,
     TrophyOutlined,
     ThunderboltOutlined,
@@ -41,6 +39,9 @@ import { DEFAULT_BALANCE, getBinColors, BIN_PAYOUTS } from './constants';
 import { dropPlinkoBall } from './dropPlinkoBall';
 import { ProvablyFair } from '../../utils/ProvablyFair';
 import { useWallet } from '../../context/WalletContext';
+import { Coins, Logo } from '../../brand/Brand';
+import { t } from '../../i18n';
+import { formatNumber } from '../../i18n/format';
 import './PlinkoGame.css';
 
 const { Text, Title, Paragraph } = Typography;
@@ -49,75 +50,62 @@ const { Text, Title, Paragraph } = Typography;
 const BALL_TYPES = {
     normal: {
         id: 'normal',
-        name: 'Basic Coin',
         color: '#ff4d4f',
         multiplierBonus: 1,
         icon: '🪙',
         image: '/images/coins/coin_original.svg',
-        description: 'Standard payout (1x)',
         cost: 1
     },
     bronze: {
         id: 'bronze',
-        name: 'Bronze Coin',
         color: '#cd7f32',
         multiplierBonus: 2,
         icon: '🟤',
         image: '/images/coins/coin_bronze.svg',
-        description: 'All payouts multiplied by 2x',
         cost: 2
     },
     silver: {
         id: 'silver',
-        name: 'Silver Coin',
         color: '#bdc3c7',
         multiplierBonus: 3,
         icon: '⚪',
         image: '/images/coins/coin_silver.svg',
-        description: 'All payouts multiplied by 3x',
         cost: 3
     },
     emerald: {
         id: 'emerald',
-        name: 'Emerald Coin',
         color: '#2ecc71',
         multiplierBonus: 5,
         icon: '🟢',
         image: '/images/coins/coin_emerald.svg',
-        description: 'All payouts multiplied by 5x',
         cost: 5
     },
     ruby: {
         id: 'ruby',
-        name: 'Ruby Coin',
         color: '#e74c3c',
         multiplierBonus: 10,
         icon: '🔴',
         image: '/images/coins/coin_ruby.svg',
-        description: 'All payouts multiplied by 10x',
         cost: 10
     },
     sapphire: {
         id: 'sapphire',
-        name: 'Sapphire Coin',
         color: '#3498db',
         multiplierBonus: 20,
         icon: '🔵',
         image: '/images/coins/coin_sapphire.svg',
-        description: 'All payouts multiplied by 20x',
         cost: 20
     }
 };
 
 function PlinkoGame() {
     // Shared Wallet
-    const { balance, placeBet, addWinnings } = useWallet()
+    const { balance, placeBet, addWinnings, showToast } = useWallet()
     // State
     const [betAmount, setBetAmount] = useState(1);
     const [rowCount, setRowCount] = useState(16);
     const [riskLevel, setRiskLevel] = useState('medium');
     const [winRecords, setWinRecords] = useState([]);
-    const [soundEnabled, setSoundEnabled] = useState(true);
     const [selectedBallType, setSelectedBallType] = useState('normal');
 
     // Provably Fair System
@@ -131,7 +119,6 @@ function PlinkoGame() {
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [statsDrawerOpen, setStatsDrawerOpen] = useState(false);
     const [fairnessModalOpen, setFairnessModalOpen] = useState(false);
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
 
     // Debug State
@@ -173,12 +160,8 @@ function PlinkoGame() {
         sapphireBalls: winRecords.filter(r => r.ballType === 'sapphire').length,
     };
 
-    // Last win
-    const lastWin = winRecords.length > 0 ? winRecords[winRecords.length - 1] : null;
-
     // Current ball type
     const currentBall = BALL_TYPES[selectedBallType];
-    const effectiveBetCost = betAmount * currentBall.cost;
 
     // Chart Data for Live Stats
     const chartData = winRecords.slice(-40);
@@ -190,7 +173,7 @@ function PlinkoGame() {
     // Handle balance change
     const handleBalanceChange = useCallback((amount) => {
         if (amount > 0) {
-            addWinnings(amount);
+            addWinnings(amount, 'plinko');
         }
         // Negative amounts (bets) are handled by placeBet in handleDropBall
     }, [addWinnings]);
@@ -231,7 +214,7 @@ function PlinkoGame() {
         if (profit > 0) {
             setCurrentStreak(prev => {
                 const newStreak = prev + 1;
-                if (newStreak > maxStreak) setMaxStreak(newStreak);
+                setMaxStreak(max => Math.max(max, newStreak));
                 return newStreak;
             });
         } else {
@@ -243,7 +226,7 @@ function PlinkoGame() {
         if (costAdjustment !== 0) {
             handleBalanceChange(-costAdjustment);
         }
-    }, [selectedBallType, calculateBonusMultiplier, handleBalanceChange, maxStreak]);
+    }, [selectedBallType, calculateBonusMultiplier, handleBalanceChange]);
 
     // Drag handler for widget
     const handleDragStart = useCallback((e) => {
@@ -349,7 +332,7 @@ function PlinkoGame() {
                     labels: Array(profitHistory.length).fill(0),
                     datasets: [
                         {
-                            label: 'Profit',
+                            label: t('plinko.profit'),
                             data: profitHistory,
                             fill: {
                                 target: 'origin',
@@ -440,17 +423,23 @@ function PlinkoGame() {
     }, [isDebugMode, rowCount, provablyFair, winRecords]);
 
     // Drop ball
-    const handleDropBall = useCallback((isCancelled) => dropPlinkoBall({
-        engine: engineRef.current,
-        pendingDrops: pendingDropsRef,
-        provablyFair,
-        rowCount,
-        betAmount,
-        currentBall,
-        selectedBallType,
-        placeBet,
-        isCancelled,
-    }), [currentBall, rowCount, provablyFair, selectedBallType, betAmount, placeBet]);
+    const handleDropBall = useCallback(async (isCancelled) => {
+        // The board switches rows only after that row's drop positions are loaded; wait until it matches.
+        if (engineRef.current && engineRef.current.rowCount !== rowCount) return 'busy';
+        const result = await dropPlinkoBall({
+            engine: engineRef.current,
+            pendingDrops: pendingDropsRef,
+            provablyFair,
+            rowCount,
+            betAmount,
+            currentBall,
+            selectedBallType,
+            placeBet: (amount) => placeBet(amount, 'plinko'),
+            isCancelled,
+        });
+        if (result === 'insufficient-funds') showToast('error', t('plinko.insufficientTitle'), t('plinko.insufficientBody'));
+        return result;
+    }, [currentBall, rowCount, provablyFair, selectedBallType, betAmount, placeBet, showToast]);
 
     // Fullscreen toggle
     const toggleFullscreen = useCallback(() => {
@@ -473,11 +462,9 @@ function PlinkoGame() {
     return (
         <div className="plinko-page">
             <div className="plinko-main" ref={gameDisplayRef}>
-                {/* Hot Streak Banner removed - streak shown in History & Statistics */}
-
                 <div className="plinko-container">
                     {/* Sidebar - LEFT */}
-                    <MobileBetSheet title="Plinko bet controls" className="plinko-bet-sheet">
+                    <MobileBetSheet title={t('plinko.betControls')} className="plinko-bet-sheet">
                         <div className="plinko-sidebar-wrapper">
                             <Sidebar
                                 balance={balance}
@@ -489,19 +476,11 @@ function PlinkoGame() {
                                 setRiskLevel={setRiskLevel}
                                 hasOutstandingBalls={hasOutstandingBalls}
                                 onDropBall={handleDropBall}
-                                onSettingsClick={() => setIsSettingsOpen(!isSettingsOpen)}
                                 onStatsClick={() => setStatsDrawerOpen(true)}
-                                isSettingsOpen={isSettingsOpen}
                                 isStatsOpen={statsDrawerOpen}
                                 selectedBallType={selectedBallType}
                                 setSelectedBallType={setSelectedBallType}
                                 ballTypes={BALL_TYPES}
-                                currentBall={currentBall}
-                                lastWin={lastWin}
-                                winRecords={winRecords}
-                                currentStreak={currentStreak}
-                                maxStreak={maxStreak}
-                                effectiveBetCost={effectiveBetCost}
                             />
                         </div>
                     </MobileBetSheet>
@@ -525,25 +504,25 @@ function PlinkoGame() {
                                 <div className="widget-header debug-widget-header" onMouseDown={handleDebugDragStart}>
                                     <div className="widget-title">
                                         <BugOutlined style={{ color: 'var(--primary)', fontSize: 18 }} />
-                                        <span style={{ color: 'var(--primary)' }}>FAIRNESS DEBUG</span>
+                                        <span style={{ color: 'var(--primary)' }}>{t('plinko.debug.title')}</span>
                                     </div>
                                     <div className="widget-actions">
-                                        <button className="widget-btn-icon" onMouseDown={(e) => e.stopPropagation()} onClick={() => setIsDebugMode(false)}>
+                                        <button className="widget-btn-icon" aria-label={t('plinko.close')} onMouseDown={(e) => e.stopPropagation()} onClick={() => setIsDebugMode(false)}>
                                             <CloseOutlined />
                                         </button>
                                     </div>
                                 </div>
                                 <div className="widget-content debug-widget-content">
                                     <div className="debug-row">
-                                        <span className="debug-label">Next Hash:</span>
+                                        <span className="debug-label">{t('plinko.debug.nextHash')}</span>
                                         <span className="debug-value">{debugData.hash.substring(0, 16)}...</span>
                                     </div>
                                     <div className="debug-row">
-                                        <span className="debug-label">Next Nonce:</span>
+                                        <span className="debug-label">{t('plinko.debug.nextNonce')}</span>
                                         <span className="debug-value">{debugData.nonce}</span>
                                     </div>
                                     <div className="debug-target">
-                                        TARGET BIN: <span className="target-bin">#{debugData.binIndex}</span>
+                                        {t('plinko.debug.targetBin')}: <span className="target-bin">#{debugData.binIndex}</span>
                                         {' → '}
                                         <span className="target-payout">
                                             {BIN_PAYOUTS[rowCount]?.[riskLevel]?.[debugData.binIndex] ?? '?'}×
@@ -552,7 +531,7 @@ function PlinkoGame() {
                                     <div className="debug-path-row">
                                         {debugData.path.map((dir, i) => (
                                             <span key={i} className={`debug-path-dot ${dir === 0 ? 'left' : 'right'}`}>
-                                                {dir === 0 ? 'L' : 'R'}
+                                                {dir === 0 ? t('plinko.debug.left') : t('plinko.debug.right')}
                                             </span>
                                         ))}
                                     </div>
@@ -563,41 +542,28 @@ function PlinkoGame() {
                         {/* Bottom Controls */}
                         <div className="plinko-controls">
                             <Space>
-                                <Tooltip title="Game Settings">
+                                <Tooltip title={isFullscreen ? t('plinko.exitFullscreen') : t('games.fullscreen')}>
                                     <Button
                                         type="text"
-                                        icon={<SettingOutlined />}
-                                        className="control-btn"
-                                        onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                                    />
-                                </Tooltip>
-                                <Tooltip title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}>
-                                    <Button
-                                        type="text"
+                                        aria-label={isFullscreen ? t('plinko.exitFullscreen') : t('games.fullscreen')}
                                         icon={isFullscreen ? <FullscreenExitOutlined /> : <ExpandOutlined />}
                                         className="control-btn"
                                         onClick={toggleFullscreen}
                                     />
                                 </Tooltip>
-                                <Tooltip title="Statistics">
+                                <Tooltip title={t('plinko.liveStats')}>
                                     <Button
                                         type="text"
+                                        aria-label={t('plinko.liveStats')}
                                         icon={<BarChartOutlined />}
                                         className="control-btn"
                                         onClick={() => setStatsDrawerOpen(true)}
                                     />
                                 </Tooltip>
-                                <Tooltip title={soundEnabled ? "Mute" : "Unmute"}>
+                                <Tooltip title={isDebugMode ? t('plinko.debugOff') : t('plinko.debugOn')}>
                                     <Button
                                         type="text"
-                                        icon={<SoundOutlined />}
-                                        className={`control-btn ${soundEnabled ? '' : 'muted'}`}
-                                        onClick={() => setSoundEnabled(!soundEnabled)}
-                                    />
-                                </Tooltip>
-                                <Tooltip title={isDebugMode ? "Disable Debug" : "Enable Debug (Peek Fairness)"}>
-                                    <Button
-                                        type="text"
+                                        aria-label={isDebugMode ? t('plinko.debugOff') : t('plinko.debugOn')}
                                         icon={<BugOutlined />}
                                         className={`control-btn ${isDebugMode ? 'active-debug' : ''}`}
                                         style={{ color: isDebugMode ? 'var(--primary)' : undefined }}
@@ -606,7 +572,7 @@ function PlinkoGame() {
                                 </Tooltip>
                             </Space>
 
-                            <span className="logo" style={{ color: 'var(--text-primary)' }}>Stake</span>
+                            <Logo size={22} />
 
                             <Button
                                 type="text"
@@ -614,7 +580,7 @@ function PlinkoGame() {
                                 className="fairness-btn"
                                 onClick={() => setFairnessModalOpen(true)}
                             >
-                                Fairness
+                                {t('games.fairness')}
                             </Button>
                         </div>
                     </div>
@@ -624,13 +590,13 @@ function PlinkoGame() {
                 <div className="recent-plays">
                     <div className="recent-plays-header">
                         <ThunderboltOutlined />
-                        <span>Recent Plays</span>
-                        <span className="total-plays">{winRecords.length} drops</span>
+                        <span>{t('plinko.recentPlays')}</span>
+                        <span className="total-plays">{t('plinko.drops', { count: winRecords.length })}</span>
                     </div>
                     <div className="recent-plays-bar">
                         <div className="recent-plays-list">
                             {winRecords.length === 0 ? (
-                                <div className="recent-plays-empty">No drops yet</div>
+                                <div className="recent-plays-empty">{t('plinko.noDrops')}</div>
                             ) : (
                                 winRecords.slice(-30).reverse().map((record) => {
                                     const colors = getBinColors(record.rowCount);
@@ -641,9 +607,9 @@ function PlinkoGame() {
                                             key={record.id}
                                             title={
                                                 <div>
-                                                    <div>{actualBall.name}</div>
-                                                    <div>Payout: ₿{record.payout.value.toFixed(2)}</div>
-                                                    {isSpecial && <div>Bonus: {record.bonusMultiplier.toFixed(2)}×</div>}
+                                                    <div>{t(`plinko.balls.${actualBall.id}`)}</div>
+                                                    <div>{t('plinko.payout')}: <Coins value={record.payout.value} size={14} /></div>
+                                                    {isSpecial && <div>{t('plinko.bonus')}: {record.bonusMultiplier.toFixed(2)}×</div>}
                                                 </div>
                                             }
                                         >
@@ -671,6 +637,7 @@ function PlinkoGame() {
                             <Button
                                 type="text"
                                 className="view-all-btn"
+                                aria-label={t('plinko.openHistory')}
                                 onClick={() => setHistoryDrawerOpen(true)}
                                 icon={<RightOutlined />}
                             />
@@ -685,15 +652,15 @@ function PlinkoGame() {
                     <div className="widget-header" onMouseDown={handleDragStart}>
                         <div className="widget-title">
                             <LineChartOutlined style={{ fontSize: 20, color: '#94a3b8' }} />
-                            <span>Live Stats</span>
+                            <span>{t('plinko.liveStats')}</span>
                         </div>
                         <div className="widget-actions">
-                            <Tooltip title="Reset Live Stats" placement="topRight">
-                                <button className="widget-btn-icon" onMouseDown={(e) => e.stopPropagation()} onClick={() => setWinRecords([])}>
+                            <Tooltip title={t('plinko.resetStats')} placement="topRight">
+                                <button className="widget-btn-icon" aria-label={t('plinko.resetStats')} onMouseDown={(e) => e.stopPropagation()} onClick={() => setWinRecords([])}>
                                     <ReloadOutlined />
                                 </button>
                             </Tooltip>
-                            <button className="widget-btn-icon" onMouseDown={(e) => e.stopPropagation()} onClick={() => setStatsDrawerOpen(false)}>
+                            <button className="widget-btn-icon" aria-label={t('plinko.close')} onMouseDown={(e) => e.stopPropagation()} onClick={() => setStatsDrawerOpen(false)}>
                                 <CloseOutlined />
                             </button>
                         </div>
@@ -703,30 +670,30 @@ function PlinkoGame() {
                         {/* Profit Overview */}
                         <div className="profit-box">
                             <div className="profit-main">
-                                <p className="label">Profit</p>
+                                <p className="label">{t('plinko.profit')}</p>
                                 <p className="value" style={{ color: stats.totalProfit >= 0 ? '#4ade80' : '#f87171' }}>
-                                    ₿{stats.totalProfit.toFixed(2)}
+                                    <Coins value={stats.totalProfit} size={18} />
                                 </p>
                             </div>
                             <div className="profit-divider"></div>
                             <div className="profit-stats">
                                 <div className="stat-row">
-                                    <p className="label">Wins</p>
-                                    <p className="value" style={{ color: '#4ade80' }}>{winsCount.toLocaleString()}</p>
+                                    <p className="label">{t('plinko.wins')}</p>
+                                    <p className="value" style={{ color: '#4ade80' }}>{formatNumber(winsCount)}</p>
                                 </div>
                                 <div className="stat-row">
-                                    <p className="label">Losses</p>
-                                    <p className="value" style={{ color: '#f87171' }}>{lossesCount.toLocaleString()}</p>
+                                    <p className="label">{t('plinko.losses')}</p>
+                                    <p className="value" style={{ color: '#f87171' }}>{formatNumber(lossesCount)}</p>
                                 </div>
                             </div>
                         </div>
 
                         {/* Chart.js Container */}
                         <div className="chart-box" onMouseLeave={() => setHoveredProfitValue(null)}>
-                            <p className="label">Profit History</p>
+                            <p className="label">{t('plinko.profitHistory')}</p>
                             {hoveredProfitValue !== null && (
                                 <p className="hovered-value" style={{ color: hoveredProfitValue >= 0 ? '#4ade80' : '#f87171' }}>
-                                    {hoveredProfitValue >= 0 ? '' : '-'}₿{Math.abs(hoveredProfitValue).toFixed(2)}
+                                    <Coins value={hoveredProfitValue} size={16} />
                                 </p>
                             )}
                             <div className="canvas-wrapper">
@@ -742,7 +709,7 @@ function PlinkoGame() {
                 title={
                     <Space className="history-window-header-title">
                         <div className="icon-wrapper"><ThunderboltOutlined /></div>
-                        <span>Play History & Dashboard</span>
+                        <span>{t('plinko.historyTitle')}</span>
                     </Space>
                 }
                 centered
@@ -752,20 +719,20 @@ function PlinkoGame() {
                 width={460}
                 rootClassName="plinko-history-modal-portal mobile-game-modal"
                 className="history-window box-modal-3d"
-                closeIcon={<CloseOutlined style={{ color: '#94a3b8' }} />}
+                closable={{ closeIcon: <CloseOutlined style={{ color: '#94a3b8' }} />, 'aria-label': t('plinko.close') }}
             >
                 <div className="history-window-content">
                     {/* Achievements */}
                     <div className="dashboard-section">
-                        <div className="section-title">Milestones</div>
+                        <div className="section-title">{t('plinko.milestones')}</div>
                         <div className="achievements-row">
                             {(() => {
                                 const achievements = [
-                                    { id: 'first-drop', title: 'First Drop', unlocked: winRecords.length > 0, icon: <StarOutlined /> },
-                                    { id: 'ruby-used', title: 'Used Ruby Coin', unlocked: stats.rubyBalls > 0, icon: <ThunderboltOutlined /> },
-                                    { id: 'sapphire-used', title: 'Used Sapphire Coin', unlocked: stats.sapphireBalls > 0, icon: <StarOutlined /> },
-                                    { id: 'big-win', title: 'Big Win 20×', unlocked: winRecords.some(w => w.payout.multiplier >= 20), icon: <TrophyOutlined /> },
-                                    { id: 'hot-streak', title: 'Hot streak 5+', unlocked: maxStreak >= 5, icon: <FireOutlined /> },
+                                    { id: 'first-drop', title: t('plinko.milestoneFirst'), unlocked: winRecords.length > 0, icon: <StarOutlined /> },
+                                    { id: 'ruby-used', title: t('plinko.milestoneRuby'), unlocked: stats.rubyBalls > 0, icon: <ThunderboltOutlined /> },
+                                    { id: 'sapphire-used', title: t('plinko.milestoneSapphire'), unlocked: stats.sapphireBalls > 0, icon: <StarOutlined /> },
+                                    { id: 'big-win', title: t('plinko.milestoneBigWin'), unlocked: winRecords.some(w => w.payout.multiplier >= 20), icon: <TrophyOutlined /> },
+                                    { id: 'hot-streak', title: t('plinko.milestoneStreak'), unlocked: maxStreak >= 5, icon: <FireOutlined /> },
                                 ];
                                 return achievements.map(a => (
                                     <div key={a.id} className={`achievement-badge ${a.unlocked ? 'unlocked' : 'locked'}`}>
@@ -779,12 +746,12 @@ function PlinkoGame() {
 
                     {/* Streak timeline (last 20 results) */}
                     <div className="dashboard-section">
-                        <div className="section-title">Streak Timeline (Last 20)</div>
+                        <div className="section-title">{t('plinko.timeline')}</div>
                         <div className="streak-timeline glass-panel">
                             {winRecords.slice(-20).map((r, idx) => {
                                 const actualBall = BALL_TYPES[r.ballType] || BALL_TYPES.normal;
                                 return (
-                                    <div key={r.id || idx} className={`timeline-dot ${r.profit > 0 ? 'win' : 'loss'}`} title={`${actualBall.name} • ${r.payout.multiplier.toFixed(2)}×`} />
+                                    <div key={r.id || idx} className={`timeline-dot ${r.profit > 0 ? 'win' : 'loss'}`} title={`${t(`plinko.balls.${actualBall.id}`)} • ${r.payout.multiplier.toFixed(2)}×`} />
                                 );
                             })}
                         </div>
@@ -792,10 +759,10 @@ function PlinkoGame() {
 
                     {/* History list */}
                     <div className="dashboard-section">
-                        <div className="section-title">Recent Transactions</div>
+                        <div className="section-title">{t('plinko.recentList')}</div>
                         <div className="history-list">
                             {winRecords.length === 0 ? (
-                                <div className="empty-state">No transaction history yet</div>
+                                <div className="empty-state">{t('plinko.historyEmpty')}</div>
                             ) : (
                                 winRecords.slice().reverse().map((r) => {
                                     const colors = getBinColors(r.rowCount);
@@ -807,11 +774,11 @@ function PlinkoGame() {
                                                 <div className="ball-color-circle medium" style={{ backgroundImage: `url(${actualBall.image})`, backgroundSize: 'cover', backgroundColor: 'transparent' }}></div>
                                             </div>
                                             <div className="history-card-info">
-                                                <div className="history-card-name">{actualBall.name}</div>
+                                                <div className="history-card-name">{t(`plinko.balls.${actualBall.id}`)}</div>
                                                 <div className="history-card-multiplier" style={{ color: colors.background[r.binIndex] || '#fff' }}>{r.payout.multiplier.toFixed(2)}×</div>
                                             </div>
                                             <div className={`history-card-profit ${isWin ? 'profit-up' : 'profit-down'}`}>
-                                                {isWin ? '+' : ''}₿{Math.abs(r.profit).toFixed(2)}
+                                                {isWin ? '+' : '-'}<Coins value={Math.abs(r.profit)} size={14} />
                                             </div>
                                         </div>
                                     );
@@ -827,7 +794,7 @@ function PlinkoGame() {
                 title={
                     <Space>
                         <SafetyCertificateOutlined style={{ color: 'var(--primary)' }} />
-                        <span>Provably Fair</span>
+                        <span>{t('plinko.fairness.title')}</span>
                     </Space>
                 }
                 open={fairnessModalOpen}
@@ -837,6 +804,7 @@ function PlinkoGame() {
                 rootClassName="plinko-fairness-modal-portal mobile-game-modal"
                 className="fairness-modal box-modal-3d"
                 centered
+                closable={{ 'aria-label': t('plinko.close') }}
                 styles={{
                     content: { background: '#1a2c38', padding: 0 }
                 }}
@@ -844,42 +812,32 @@ function PlinkoGame() {
                 <div className="fairness-header">
                     <Title level={5}>
                         <CheckCircleOutlined style={{ marginRight: 8 }} />
-                        This game is provably fair
+                        {t('plinko.fairness.headline')}
                     </Title>
-                    <Paragraph>
-                        Plinko uses a provably fair algorithm with physics simulation.
-                        Each ball drop is determined by initial position and realistic physics.
-                    </Paragraph>
+                    <Paragraph>{t('plinko.fairness.body')}</Paragraph>
+                    <Paragraph type="secondary">{t('plinko.fairness.notVerifiable')}</Paragraph>
                 </div>
 
                 <div className="fairness-item">
-                    <span className="fairness-label">Game</span>
+                    <span className="fairness-label">{t('plinko.fairness.game')}</span>
                     <Text className="fairness-value">Plinko</Text>
                 </div>
                 <div className="fairness-item">
-                    <span className="fairness-label">Total Drops</span>
+                    <span className="fairness-label">{t('plinko.fairness.drops')}</span>
                     <Text className="fairness-value">{winRecords.length}</Text>
                 </div>
                 <div className="fairness-item">
-                    <span className="fairness-label">Current Rows</span>
+                    <span className="fairness-label">{t('plinko.fairness.rows')}</span>
                     <Text className="fairness-value">{rowCount}</Text>
                 </div>
                 <div className="fairness-item">
-                    <span className="fairness-label">Current Ball</span>
+                    <span className="fairness-label">{t('plinko.fairness.ball')}</span>
                     <Text className="fairness-value">
                         <div className="ball-color-circle small" style={{ backgroundImage: `url(${currentBall.image})`, backgroundSize: 'cover', backgroundColor: 'transparent', marginRight: 6 }}></div>
-                        {currentBall.name}
+                        {t(`plinko.balls.${currentBall.id}`)}
                     </Text>
                 </div>
 
-                <Button
-                    type="primary"
-                    block
-                    className="fairness-verify-btn"
-                    icon={<CheckCircleOutlined />}
-                >
-                    Verify Game
-                </Button>
             </Modal>
         </div>
     );

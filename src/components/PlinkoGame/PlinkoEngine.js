@@ -146,7 +146,7 @@ class PlinkoEngine {
 
                 this.ctx.beginPath();
                 this.ctx.arc(pin.x, pin.y, pin.radius, 0, Math.PI * 2);
-                this.ctx.fillStyle = '#00e701'; // Stake signature green when hit
+                this.ctx.fillStyle = '#1fd67a'; // 123bet brand green when hit (canvas cannot read CSS variables)
                 this.ctx.fill();
 
                 // Bright glow effect
@@ -154,8 +154,8 @@ class PlinkoEngine {
                     this.ctx.beginPath();
                     this.ctx.arc(pin.x, pin.y, pin.radius, 0, Math.PI * 2);
                     this.ctx.shadowBlur = 10 * progress;
-                    this.ctx.shadowColor = '#00e701';
-                    this.ctx.fillStyle = '#00e701';
+                    this.ctx.shadowColor = '#1fd67a';
+                    this.ctx.fillStyle = '#1fd67a';
                     this.ctx.fill();
                     // Reset shadow so it doesn't affect other elements
                     this.ctx.shadowBlur = 0;

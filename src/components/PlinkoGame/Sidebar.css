@@ -175,27 +175,6 @@
     font-weight: 700;
 }
 
-/* BTC icon like Crash's panel */
-.plinko-page .btc-icon {
-    width: 20px;
-    height: 20px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #f7931a, #ffb347);
-    color: #fff;
-    font-weight: 800;
-    font-size: 13px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
-}
-
-.plinko-page .btc-icon.small {
-    width: 20px;
-    height: 20px;
-    font-size: 10px;
-}
-
 /* Input Components - Ant Design Overrides & 3D Style */
 .plinko-page .sidebar .ant-input-number {
     flex: 1;
@@ -223,11 +202,6 @@
 + .ant-input-number-compact-last-item {
     border-top-left-radius: 0 !important;
     border-bottom-left-radius: 0 !important;
-}
-
-.plinko-page .sidebar .ant-input-number-group-addon .btc-icon,
-.plinko-page .sidebar .ant-input-number-addon .btc-icon {
-    background: linear-gradient(135deg, #f7931a, #ffb347) !important;
 }
 
 .plinko-page .sidebar .ant-input-number .ant-input-number-input {

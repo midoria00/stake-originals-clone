@@ -5,7 +5,7 @@
 //
 // Mô phỏng physics offline cho mỗi rowCount (8-16),
 // tạo mapping: rowCount → binIndex → [startX (padded)]
-// Output: public/plinko-outcomes.json
+// Output: scripts/data/plinko-outcomes.full.json (build input only; node scripts/splitPlinkoOutcomes.mjs writes the small per-row files in public/plinko/)
 // ═══════════════════════════════════════════════════════════════
 
 const fs = require('fs');
@@ -180,7 +180,7 @@ function main() {
         allOutcomes[rows] = generateOutcomesForRow(rows);
     }
 
-    const outPath = path.resolve(__dirname, '..', 'public', 'plinko-outcomes.json');
+    const outPath = path.resolve(__dirname, 'data', 'plinko-outcomes.full.json');
     fs.writeFileSync(outPath, JSON.stringify(allOutcomes), 'utf-8');
 
     const sizeKB = (fs.statSync(outPath).size / 1024).toFixed(1);
