@@ -95,9 +95,12 @@ export function saveBalance(storage, balance) {
     try { storage.setItem(BALANCE_KEY, String(balance)) } catch { /* storage full or blocked */ }
 }
 
-export function saveLedger(storage, state) {
+// Full save. The legacy key goes away only after the new balance and ledger were written, so a
+// migrated balance can never be lost between the two versions.
+export function saveWallet(storage, state) {
     try {
+        storage.setItem(BALANCE_KEY, String(state.balance))
         storage.setItem(LEDGER_KEY, JSON.stringify({ history: state.history, stats: state.stats, migratedFrom: state.migratedFrom, migrationSeen: state.migrationSeen }))
         storage.removeItem(LEGACY_BALANCE_KEY)
-    } catch { /* storage full or blocked */ }
+    } catch { /* storage full or blocked: the legacy balance stays for the next visit */ }
 }

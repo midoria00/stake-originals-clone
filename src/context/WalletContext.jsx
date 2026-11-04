@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { applyEntry, canAddFreeCredits, canPlace, loadWallet, round2, saveBalance, saveLedger } from '../wallet/ledger'
+import { applyEntry, canAddFreeCredits, canPlace, loadWallet, round2, saveBalance, saveWallet } from '../wallet/ledger'
 
 const WalletContext = createContext(null)
 
@@ -26,13 +26,13 @@ export function WalletProvider({ children }) {
         setWallet(next)
         saveBalance(storage, next.balance)
         clearTimeout(ledgerTimer.current)
-        ledgerTimer.current = setTimeout(() => saveLedger(storage, stateRef.current), 250)
+        ledgerTimer.current = setTimeout(() => saveWallet(storage, stateRef.current), 250)
     }, [storage])
 
     useEffect(() => {
         const flush = () => {
             clearTimeout(ledgerTimer.current)
-            saveLedger(storage, stateRef.current)
+            saveWallet(storage, stateRef.current)
         }
         if (stateRef.current.migratedFrom !== null) flush()
         window.addEventListener('pagehide', flush)

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { applyEntry, BALANCE_KEY, canAddFreeCredits, canPlace, INITIAL_BALANCE, LEDGER_KEY, LEGACY_BALANCE_KEY, loadWallet, saveBalance, saveLedger } from './ledger.js'
+import { applyEntry, BALANCE_KEY, canAddFreeCredits, canPlace, INITIAL_BALANCE, LEDGER_KEY, LEGACY_BALANCE_KEY, loadWallet, saveWallet } from './ledger.js'
 
 const memoryStorage = (initial = {}) => {
     const map = new Map(Object.entries(initial))
@@ -22,8 +22,9 @@ test('the previous balance migrates to 123 Coins and the old key is removed only
     assert.equal(state.history[0].type, 'migration')
     assert.equal(storage.map.get(LEGACY_BALANCE_KEY), '977.22', 'nothing deleted while loading')
 
-    saveBalance(storage, state.balance)
-    saveLedger(storage, state)
+    // Exactly what WalletProvider does on mount when a migration happened: one full save.
+    saveWallet(storage, state)
+    assert.equal(storage.map.get(BALANCE_KEY), '977.22')
     assert.equal(storage.map.has(LEGACY_BALANCE_KEY), false)
     const reloaded = loadWallet(storage)
     assert.equal(reloaded.balance, 977.22)
