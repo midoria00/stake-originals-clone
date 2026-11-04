@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useWallet } from '../context/WalletContext'
+import { t } from '../i18n'
 import { fetchMatch, fetchMatches } from './api'
 import { money, selectionLabel } from './format'
 import { settleBet } from './settlement'
@@ -111,12 +112,23 @@ export function BetSlipProvider({ children }) {
     const totalStake = plannedBets.reduce((total, bet) => total + (Number.isFinite(bet.stake) ? bet.stake : 0), 0)
     const potentialReturn = plannedBets.reduce((total, bet) => total + (Number.isFinite(bet.stake) ? bet.stake * bet.odd : 0), 0)
 
-    const place = useCallback(async () => {
-        if (placing || !selections.length) return
-        if (mode === 'multiple' && selections.length < 2) return setMessage({ type: 'error', text: 'A múltipla precisa de pelo menos 2 seleções.' })
-        if (!plannedBets.every((bet) => validStake(bet.stake))) {
-            return setMessage({ type: 'error', text: `Informe um valor entre ${money(MIN_STAKE)} e ${money(MAX_STAKE)} para cada aposta.` })
+    // Local checks before the review step and again before placing.
+    const check = useCallback(() => {
+        if (!selections.length) return false
+        if (mode === 'multiple' && selections.length < 2) {
+            setMessage({ type: 'error', text: t('sports.errors.multipleMin') })
+            return false
         }
+        if (!plannedBets.every((bet) => validStake(bet.stake))) {
+            setMessage({ type: 'error', text: t('sports.errors.stakeRange', { min: money(MIN_STAKE), max: money(MAX_STAKE) }) })
+            return false
+        }
+        setMessage(null)
+        return true
+    }, [selections.length, mode, plannedBets])
+
+    const place = useCallback(async () => {
+        if (placing || !check()) return
 
         setPlacing(true)
         setMessage(null)
@@ -129,12 +141,12 @@ export function BetSlipProvider({ children }) {
             const updated = selections.map((s) => {
                 const match = fresh.get(s.matchId)
                 if (!match || (match.status.phase !== 'scheduled' && match.status.phase !== 'live')) {
-                    problems.push(`${s.home} x ${s.away}: partida encerrada ou indisponível`)
+                    problems.push(t('sports.errors.matchClosed', { home: s.home, away: s.away }))
                     return s
                 }
                 const selection = findSelection(match, s.selectionId)
                 if (!selection || selection.suspended) {
-                    problems.push(`${s.label}: mercado indisponível no momento`)
+                    problems.push(t('sports.errors.marketClosed', { label: s.label }))
                     return s
                 }
                 const live = match.status.phase === 'live'
@@ -146,14 +158,14 @@ export function BetSlipProvider({ children }) {
             })
             if (problems.length) {
                 setSelections(updated)
-                return setMessage({ type: 'error', text: `${problems.join(' · ')}. Remova a seleção para continuar.` })
+                return setMessage({ type: 'error', text: t('sports.errors.removeToContinue', { problems: problems.join(' · ') }) })
             }
             if (changed) {
                 setSelections(updated)
-                return setMessage({ type: 'warning', text: 'As odds mudaram. Confira os novos valores e confirme de novo.' })
+                return setMessage({ type: 'warning', text: t('sports.errors.oddsChanged') })
             }
 
-            if (!placeBet(totalStake)) return setMessage({ type: 'error', text: 'Saldo de créditos fictícios insuficiente.' })
+            if (!placeBet(totalStake, 'sports')) return setMessage({ type: 'error', text: t('sports.errors.insufficient') })
 
             const placedAt = new Date().toISOString()
             const created = plannedBets.map((bet, index) => ({
@@ -179,14 +191,14 @@ export function BetSlipProvider({ children }) {
             })
             setSelections([])
             setStakes({})
-            showToast('bet', 'Aposta registrada', `${created.length} aposta(s) · ${money(totalStake)}`)
-            setMessage({ type: 'success', text: 'Aposta registrada. Acompanhe em "Minhas apostas".' })
+            showToast('bet', t('sports.placedToastTitle'), t('sports.placedToastBody', { count: created.length, amount: money(totalStake) }))
+            setMessage({ type: 'success', text: t('sports.placed') })
         } catch {
-            setMessage({ type: 'error', text: 'Não foi possível confirmar as odds agora. Tente novamente.' })
+            setMessage({ type: 'error', text: t('sports.errors.confirmFailed') })
         } finally {
             setPlacing(false)
         }
-    }, [placing, selections, mode, plannedBets, placeBet, totalStake, showToast])
+    }, [placing, check, selections, plannedBets, placeBet, totalStake, showToast])
 
     // Settle pending bets whose matches have kicked off.
     useEffect(() => {
@@ -216,8 +228,14 @@ export function BetSlipProvider({ children }) {
                 })
                 write(BETS_KEY, next)
                 if (!cancelled) setBets(next)
-                if (credit > 0) walletRef.current.addWinnings(credit)
-                if (settled) walletRef.current.showToast(credit > 0 ? 'win' : 'loss', `${settled} aposta(s) liquidada(s)`, credit > 0 ? `Retorno de ${money(credit)}` : 'Sem retorno')
+                if (credit > 0) walletRef.current.addWinnings(credit, 'sports')
+                if (settled) {
+                    walletRef.current.showToast(
+                        credit > 0 ? 'win' : 'loss',
+                        t('sports.settledToast', { count: settled }),
+                        credit > 0 ? t('sports.settledReturn', { amount: money(credit) }) : t('sports.settledNoReturn'),
+                    )
+                }
             })
         }
         settle()
@@ -237,8 +255,8 @@ export function BetSlipProvider({ children }) {
 
     const value = useMemo(() => ({
         selections, mode, setMode, stakes, setStakes, bets, placing, message,
-        toggle, remove, clear, clearSettled, isSelected, place, totalOdd, totalStake, potentialReturn,
-    }), [selections, mode, stakes, bets, placing, message, toggle, remove, clear, clearSettled, isSelected, place, totalOdd, totalStake, potentialReturn])
+        toggle, remove, clear, clearSettled, isSelected, check, place, plannedBets, totalOdd, totalStake, potentialReturn,
+    }), [selections, mode, stakes, bets, placing, message, toggle, remove, clear, clearSettled, isSelected, check, place, plannedBets, totalOdd, totalStake, potentialReturn])
 
     return <BetSlipContext.Provider value={value}>{children}</BetSlipContext.Provider>
 }

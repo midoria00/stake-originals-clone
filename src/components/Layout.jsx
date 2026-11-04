@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Drawer } from 'antd'
 import { Outlet, useLocation } from 'react-router-dom'
 import { gameFromPath } from '../games'
@@ -48,6 +48,7 @@ function Layout() {
     const [slipOpen, setSlipOpen] = useState(false)
     const menuButtonRef = useRef(null)
     const closeMenu = useCallback(() => setMenuOpen(false), [])
+    const outletContext = useMemo(() => ({ openSlip: () => setSlipOpen(true) }), [])
     useRouteEffects(pathname)
 
     return (
@@ -61,7 +62,7 @@ function Layout() {
                     <main id="main" className="main-content" tabIndex={-1}>
                         <RouteErrorBoundary key={pathname}>
                             <Suspense fallback={<PageSkeleton />}>
-                                <Outlet />
+                                <Outlet context={outletContext} />
                             </Suspense>
                         </RouteErrorBoundary>
                     </main>
