@@ -331,7 +331,7 @@ function GameChart({ phase, multiplier, elapsedTime, countdown }) {
                         letterSpacing: '-2px',
                         textShadow: `0 0 40px ${getMultiplierColor()}50, 0 0 80px ${getMultiplierColor()}30`,
                         transition: 'color 0.2s ease',
-                        fontFamily: "'Inter', -apple-system, sans-serif"
+                        fontFamily: "'Inter Variable', 'Inter', -apple-system, sans-serif"
                     }}
                 >
                     {multiplier.toFixed(2)}

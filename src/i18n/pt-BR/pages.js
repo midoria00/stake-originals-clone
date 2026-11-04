@@ -219,7 +219,7 @@ export default {
         legacyNote: 'Chaves da versão anterior (stake_wallet_balance e stake_palette_preset) são lidas uma única vez para manter seu saldo e tema e depois removidas.',
         servicesTitle: 'Conexões com outros serviços',
         services: [
-            'Fontes Inter e Manrope carregadas do Google Fonts (fonts.googleapis.com e fonts.gstatic.com). O Google recebe o endereço IP e dados técnicos do navegador ao entregar as fontes.',
+            'As fontes Inter e Manrope são servidas pelo próprio site, sem pedidos ao Google Fonts.',
             'O site é hospedado na Vercel, que registra dados técnicos de acesso (como IP e horário) para operar o serviço.',
             'Os dados de futebol passam pelo nosso servidor. Com um fornecedor real configurado, escudos e logotipos podem ser carregados direto do servidor de imagens desse fornecedor.',
         ],

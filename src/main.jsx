@@ -5,6 +5,9 @@ import { ConfigProvider } from 'antd'
 import { ThemeProvider, useThemeSettings } from './context/ThemeContext'
 import { WalletProvider } from './context/WalletContext'
 import App from './App'
+// Self-hosted fonts (OFL): no render-blocking request to Google and no visitor IP sent to a third party.
+import '@fontsource-variable/inter'
+import '@fontsource-variable/manrope'
 import './styles/index.css'
 
 function ThemedApp() {

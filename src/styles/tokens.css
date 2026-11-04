@@ -61,8 +61,8 @@
     --focus-ring: 0 0 0 3px color-mix(in srgb, var(--primary) 45%, transparent);
 
     /* Typography */
-    --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    --font-display: 'Manrope', var(--font-family);
+    --font-family: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-display: 'Manrope Variable', 'Manrope', var(--font-family);
     --font-size-xs: 11px;
     --font-size-sm: 13px;
     --font-size-md: 15px;

@@ -117,7 +117,7 @@ export function getAntdTheme(palette) {
             colorError: tokens.danger,
             colorInfo: tokens.cyan,
             borderRadius: 10,
-            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+            fontFamily: "'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
         },
         components: {
             Button: { primaryColor: tokens.onPrimary, colorPrimaryHover: tokens.primaryHover },
