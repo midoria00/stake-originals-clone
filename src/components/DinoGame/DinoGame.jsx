@@ -52,6 +52,9 @@ import CONFIG from './core/config/game';
 import BootScene from './core/scenes/boot/BootScene';
 import GameScene from './core/scenes/game/GameScene';
 import ProvablyFair from '../../utils/ProvablyFair';
+import { Coins, CoinIcon, Logo } from '../../brand/Brand';
+import { t } from '../../i18n';
+import { formatCoins, formatMultiplier, formatNumber } from '../../i18n/format';
 
 import { useWallet } from '../../context/WalletContext';
 import MobileBetSheet from '../MobileBetSheet';
@@ -61,9 +64,9 @@ const { Text, Title, Paragraph } = Typography;
 
 // Difficulty presets
 const DIFFICULTIES = {
-    easy: { label: 'Easy', survivalChance: DINO_SURVIVAL.easy, multiplierPerJump: 1.15, color: '#35d06f' },
-    medium: { label: 'Medium', survivalChance: DINO_SURVIVAL.medium, multiplierPerJump: 1.40, color: '#f7931a' },
-    hard: { label: 'Hard', survivalChance: DINO_SURVIVAL.hard, multiplierPerJump: 1.90, color: '#ed4245' },
+    easy: { get label() { return t('dino.difficultyLevels.easy'); }, survivalChance: DINO_SURVIVAL.easy, multiplierPerJump: 1.15, color: '#35d06f' },
+    medium: { get label() { return t('dino.difficultyLevels.medium'); }, survivalChance: DINO_SURVIVAL.medium, multiplierPerJump: 1.40, color: '#f7931a' },
+    hard: { get label() { return t('dino.difficultyLevels.hard'); }, survivalChance: DINO_SURVIVAL.hard, multiplierPerJump: 1.90, color: '#ed4245' },
 };
 
 const DEFAULT_BALANCE = 200;
@@ -165,8 +168,8 @@ function DinoGame() {
     // Provably Fair
     const fairnessRef = useRef(null);
     const [fairnessData, setFairnessData] = useState({
-        serverSeedHash: 'Loading...',
-        clientSeed: 'Loading...',
+        serverSeedHash: t('dino.fair.loading'),
+        clientSeed: t('dino.fair.loading'),
         nonce: 0,
     });
     const [revealedSeed, setRevealedSeed] = useState(null);
@@ -222,7 +225,7 @@ function DinoGame() {
         // 0.99 is 99% RTP (Return To Player) -> 1% house edge
         const pureMultiplier = 0.99 / probability;
 
-        // Floor to 2 decimals like Stake
+        // Floor to 2 decimals
         return parseFloat((Math.floor(pureMultiplier * 100) / 100).toFixed(2));
     }, [difficulty]);
 
@@ -294,7 +297,7 @@ function DinoGame() {
                                 amount: betAmountRef.current,
                             });
 
-                            showToast('loss', 'Dino Crashed!', `-₿${betAmountRef.current.toFixed(2)}`, 3000);
+                            showToast('loss', t('dino.toast.crashTitle'), t('dino.toast.lossAmount', { amount: formatCoins(betAmountRef.current) }), 3000);
                         }
                     });
 
@@ -324,7 +327,7 @@ function DinoGame() {
     const placeBet = useCallback(() => {
         if (betAmount <= 0 || betAmount > balance) return;
 
-        if (!walletPlaceBet(betAmount)) return;
+        if (!walletPlaceBet(betAmount, 'dino')) return;
         setTotalWagered(prev => prev + betAmount);
         setGamesPlayed(prev => prev + 1);
         setGamePhase('betting');
@@ -333,7 +336,7 @@ function DinoGame() {
         setPotentialWin(betAmount);
         setLastResult(null);
 
-        showToast('bet', 'Game Started', `₿${betAmount.toFixed(2)} — ${DIFFICULTIES[difficulty].label}`, 2500);
+        showToast('bet', t('dino.toast.startedTitle'), t('dino.toast.startedDesc', { amount: formatCoins(betAmount), difficulty: DIFFICULTIES[difficulty].label }), 2500);
 
         // Trigger game start immediately without spacebar
         if (gameSceneRef.current) {
@@ -368,14 +371,12 @@ function DinoGame() {
             // Use ProvablyFair HMAC-SHA256
             const result = await pf.generateDinoStep(diff.survivalChance);
             survived = result.survived;
-            console.log(`[DINO FAIR] roll=${result.roll.toFixed(4)}, survivalChance=${diff.survivalChance}, survived=${survived}, nonce=${pf.nonce}`);
             // Update fairness data
             const data = await pf.getFairnessData();
             setFairnessData(data);
         } else {
             // Fallback
             survived = Math.random() < diff.survivalChance;
-            console.log(`[DINO FAIR] fallback, survived=${survived}`);
         }
 
         if (survived) {
@@ -392,7 +393,7 @@ function DinoGame() {
 
             if (newCleared > highScore) setHighScore(newCleared);
 
-            showToast('win', 'Obstacle Cleared!', `Jump ${newCleared} — ${newMult.toFixed(2)}×`, 1500);
+            showToast('win', t('dino.toast.clearedTitle'), t('dino.toast.clearedDesc', { count: newCleared, multiplier: formatMultiplier(newMult) }), 1500);
         } else {
             // RNG says die!
             gameScene.events.emit(CONFIG.EVENTS.JUMP_FAIL);
@@ -406,7 +407,7 @@ function DinoGame() {
         const gameScene = gameSceneRef.current;
 
         const winAmount = betAmountRef.current * currentMultiplier;
-        addWinnings(winAmount);
+        addWinnings(winAmount, 'dino');
         const profit = winAmount - betAmountRef.current;
         setTotalProfit(prev => prev + profit);
         setWinRecords(prev => [...prev, profit]);
@@ -425,7 +426,7 @@ function DinoGame() {
             gameScene.events.emit(CONFIG.EVENTS.GAME_OVER, gameScene.score, gameScene.highScore);
         }
 
-        showToast('win', 'Cashed Out!', `+₿${(winAmount - betAmountRef.current).toFixed(2)} at ${currentMultiplier.toFixed(2)}×`, 4000);
+        showToast('win', t('dino.toast.cashedTitle'), t('dino.toast.cashedDesc', { amount: formatCoins(winAmount - betAmountRef.current), multiplier: formatMultiplier(currentMultiplier) }), 4000);
     }, [gamePhase, currentMultiplier, obstaclesCleared, showToast]);
 
     // Fullscreen
@@ -499,7 +500,7 @@ function DinoGame() {
                     labels: Array(profitHistory.length).fill(0),
                     datasets: [
                         {
-                            label: 'Profit',
+                            label: t('dino.stats.profit'),
                             data: profitHistory,
                             fill: { target: 'origin', above: WIN_COLOR_FILL, below: LOSS_COLOR_FILL },
                             cubicInterpolationMode: 'monotone',
@@ -623,22 +624,22 @@ function DinoGame() {
                 <div className="dino-container">
                     {/* Betting Sidebar */}
                     <MobileBetSheet
-                        title="Dino bet controls"
+                        title={t('dino.betControls')}
                         className="dino-bet-sheet"
                         collapseOn={gamePhase === 'running' || gamePhase === 'waiting'}
                     >
                         <div className="dino-sidebar">
                         {/* Bet Mode Tabs */}
                         <div className="bet-mode-tabs">
-                            <button className="bet-mode-tab active">Manual</button>
-                            <button className="bet-mode-tab" disabled>Auto</button>
+                            <button className="bet-mode-tab active">{t('dino.modeManual')}</button>
+                            <button className="bet-mode-tab" disabled>{t('dino.modeAuto')}</button>
                         </div>
 
                         {/* Bet Amount */}
                         <div className="form-group">
                             <div className="form-header">
-                                <label className="form-label" style={{ margin: 0 }}>Bet Amount</label>
-                                <Text type="secondary" style={{ margin: 0 }}>₿{(betAmount ?? 0).toFixed(2)}</Text>
+                                <label className="form-label" style={{ margin: 0 }}>{t('dino.betAmount')}</label>
+                                <Text type="secondary" style={{ margin: 0 }}><Coins value={betAmount ?? 0} size={14} /></Text>
                             </div>
                             <div className="input-row">
                                 <InputNumber
@@ -650,41 +651,43 @@ function DinoGame() {
                                     style={{ flex: 1 }}
                                     controls={false}
                                     formatter={(v) => `${v}`}
-                                    parser={(v) => v.replace(/\$\s?|(,*)/g, '')}
+                                    parser={(v) => v.replace(/,/g, '')}
                                     addonBefore={
-                                        <div className="dino-currency-icon">₿</div>
+                                        <div className="dino-currency-icon"><CoinIcon size={16} /></div>
                                     }
                                 />
                                 <Button.Group className="dino-btn-group">
                                     <Button
                                         onClick={() => setBetAmount(prev => Math.max(0.1, parseFloat((Number(prev || 0.1) / 2).toFixed(2))))}
                                         disabled={!canBet}
+                                        aria-label={t('dino.half')}
                                     >
                                         ½
                                     </Button>
                                     <Button
                                         onClick={() => setBetAmount(prev => Math.min(balance, parseFloat((Number(prev || 0.1) * 2).toFixed(2))))}
                                         disabled={!canBet}
+                                        aria-label={t('dino.double')}
                                     >
                                         2×
                                     </Button>
                                 </Button.Group>
                             </div>
                             {betAmount > balance && (
-                                <p className="error-text">Can't bet more than your balance!</p>
+                                <p className="error-text">{t('dino.betTooHigh')}</p>
                             )}
                         </div>
 
                         {/* Difficulty Selector */}
                         <div className="form-group difficulty-section">
                             <div className="form-header" style={{ marginBottom: 12 }}>
-                                <label className="form-label" style={{ margin: 0 }}>Difficulty</label>
+                                <label className="form-label" style={{ margin: 0 }}>{t('dino.difficulty')}</label>
                                 <div
                                     className="survive-badge"
                                     style={{ '--diff-color': diffConfig.color }}
                                 >
                                     <div className="survive-indicator"></div>
-                                    {Math.round(diffConfig.survivalChance * 100)}% Survive
+                                    {t('dino.surviveChance', { percent: Math.round(diffConfig.survivalChance * 100) })}
                                 </div>
                             </div>
                             <div className="difficulty-tabs">
@@ -702,7 +705,7 @@ function DinoGame() {
                             </div>
                             <div className="difficulty-info">
                                 <Text type="secondary" style={{ fontSize: 11 }}>
-                                    Provable Fairness: <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>99.00%</span> RTP
+                                    {t('dino.rtp', { rtp: '99,00%' })}
                                 </Text>
                             </div>
                         </div>
@@ -714,7 +717,7 @@ function DinoGame() {
                                 onClick={placeBet}
                                 disabled={betAmount <= 0 || betAmount > balance}
                             >
-                                <PlayCircleOutlined /> {gamePhase === 'idle' ? 'Place Bet' : 'Play Again'}
+                                <PlayCircleOutlined /> {gamePhase === 'idle' ? t('dino.placeBet') : t('dino.playAgain')}
                             </button>
                         )}
 
@@ -728,10 +731,10 @@ function DinoGame() {
                                 >
                                     <div>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                                            <ThunderboltOutlined /> JUMP!
+                                            <ThunderboltOutlined /> {t('dino.jump')}
                                         </div>
                                         <div style={{ fontSize: '12px', fontWeight: '500', color: gamePhase === 'waiting' ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)', textTransform: 'none', marginTop: '4px' }}>
-                                            Risk for {getMultiplierForCleared(obstaclesCleared + 1).toFixed(2)}×
+                                            {t('dino.jumpRisk', { multiplier: formatMultiplier(getMultiplierForCleared(obstaclesCleared + 1)) })}
                                         </div>
                                     </div>
                                 </button>
@@ -740,7 +743,7 @@ function DinoGame() {
                                     onClick={cashOut}
                                     disabled={!(gamePhase === 'waiting' || (gamePhase === 'running' && obstaclesCleared > 0))}
                                 >
-                                    <TrophyOutlined /> Cash Out ₿{(betAmount * currentMultiplier).toFixed(2)}
+                                    <TrophyOutlined /> {t('dino.cashOut')} <Coins value={betAmount * currentMultiplier} size={14} />
                                 </button>
                             </div>
                         )}
@@ -750,16 +753,16 @@ function DinoGame() {
                             <div className="last-win-card current">
                                 <div className="last-win-header">
                                     <FireOutlined className="fire-icon" />
-                                    <span>Current Run</span>
+                                    <span>{t('dino.currentRun')}</span>
                                 </div>
                                 <div className="last-win-multiplier" style={{ '--run-color': diffConfig.color }}>
-                                    {currentMultiplier.toFixed(2)}×
+                                    {formatMultiplier(currentMultiplier)}
                                 </div>
                                 <div className="last-win-amount">
-                                    +₿{(betAmount * currentMultiplier).toFixed(2)}
+                                    +<Coins value={betAmount * currentMultiplier} size={14} />
                                 </div>
                                 <div className="last-win-score">
-                                    Cleared {obstaclesCleared} obstacles
+                                    {t('dino.cleared', { count: obstaclesCleared })}
                                 </div>
                             </div>
                         )}
@@ -771,18 +774,18 @@ function DinoGame() {
                             <div className={`last-win-card mobile-sheet-secondary ${lastResult.type === 'loss' ? 'lost' : 'won'}`}>
                                 <div className="last-win-header">
                                     <TrophyOutlined />
-                                    <span>Last Game</span>
+                                    <span>{t('dino.lastGame')}</span>
                                 </div>
                                 {lastResult.type === 'loss' ? (
                                     <>
-                                        <div className="last-win-result lost">💀 Crashed!</div>
-                                        <div className="last-win-score">Cleared {lastResult.obstaclesCleared} obstacles</div>
+                                        <div className="last-win-result lost">💀 {t('dino.crashed')}</div>
+                                        <div className="last-win-score">{t('dino.cleared', { count: lastResult.obstaclesCleared })}</div>
                                     </>
                                 ) : (
                                     <>
-                                        <div className="last-win-multiplier">{lastResult.multiplier.toFixed(2)}×</div>
-                                        <div className="last-win-amount">+₿{lastResult.amount.toFixed(2)}</div>
-                                        <div className="last-win-score">Cleared {lastResult.obstaclesCleared} obstacles</div>
+                                        <div className="last-win-multiplier">{formatMultiplier(lastResult.multiplier)}</div>
+                                        <div className="last-win-amount">+<Coins value={lastResult.amount} size={14} /></div>
+                                        <div className="last-win-score">{t('dino.cleared', { count: lastResult.obstaclesCleared })}</div>
                                     </>
                                 )}
                             </div>
@@ -790,14 +793,14 @@ function DinoGame() {
 
                         {/* Footer */}
                         <div className="sidebar-footer mobile-sheet-secondary">
-                            <Tooltip title="Live Stats">
-                                <Button type="text" icon={<LineChartOutlined />} className="footer-btn" onClick={() => setStatsDrawerOpen(true)} />
+                            <Tooltip title={t('dino.liveStats')}>
+                                <Button type="text" icon={<LineChartOutlined />} aria-label={t('dino.liveStats')} className="footer-btn" onClick={() => setStatsDrawerOpen(true)} />
                             </Tooltip>
-                            <Tooltip title="Dashboard">
-                                <Button type="text" icon={<BarChartOutlined />} className="footer-btn" onClick={() => setHistoryModalOpen(true)} />
+                            <Tooltip title={t('dino.dashboard')}>
+                                <Button type="text" icon={<BarChartOutlined />} aria-label={t('dino.dashboard')} className="footer-btn" onClick={() => setHistoryModalOpen(true)} />
                             </Tooltip>
-                            <Tooltip title="Fairness">
-                                <Button type="text" icon={<SafetyCertificateOutlined />} className="footer-btn" onClick={() => setFairnessModalOpen(true)} />
+                            <Tooltip title={t('dino.fairness')}>
+                                <Button type="text" icon={<SafetyCertificateOutlined />} aria-label={t('dino.fairness')} className="footer-btn" onClick={() => setFairnessModalOpen(true)} />
                             </Tooltip>
                         </div>
                         </div>
@@ -807,17 +810,17 @@ function DinoGame() {
                     <div className="dino-game-area">
                         <div className="game-hud">
                             <div className="hud-item score">
-                                <span className="hud-label">Jumps</span>
+                                <span className="hud-label">{t('dino.hud.jumps')}</span>
                                 <span className="hud-value">{obstaclesCleared}</span>
                             </div>
                             <div className="hud-item highscore">
-                                <span className="hud-label">Best</span>
+                                <span className="hud-label">{t('dino.hud.best')}</span>
                                 <span className="hud-value">{highScore}</span>
                             </div>
                             {isPlaying && (
                                 <div className="hud-item multiplier">
                                     <span className="hud-value multiplier-glow" style={{ color: diffConfig.color }}>
-                                        {currentMultiplier.toFixed(2)}×
+                                        {formatMultiplier(currentMultiplier)}
                                     </span>
                                 </div>
                             )}
@@ -830,16 +833,16 @@ function DinoGame() {
                             <div className="bet-overlay">
                                 <div className="bet-overlay-content">
                                     <div className="dino-icon">🦖</div>
-                                    <div className="overlay-title">Dino Gamble</div>
-                                    <div className="overlay-subtitle">Place your bet to start the run!</div>
+                                    <div className="overlay-title">{t('dino.overlayTitle')}</div>
+                                    <div className="overlay-subtitle">{t('dino.overlaySubtitle')}</div>
                                 </div>
                             </div>
                         )}
 
                         {gamePhase === 'waiting' && (
                             <div className="obstacle-warning">
-                                <div className="warning-pulse">⚠️ OBSTACLE AHEAD!</div>
-                                <div className="warning-sub">Jump or Cash Out?</div>
+                                <div className="warning-pulse">⚠️ {t('dino.obstacleAhead')}</div>
+                                <div className="warning-sub">{t('dino.obstacleChoice')}</div>
                             </div>
                         )}
 
@@ -849,44 +852,44 @@ function DinoGame() {
                                 <div className="widget-header debug-widget-header" onMouseDown={handleDebugDragStart}>
                                     <div className="widget-title">
                                         <BugOutlined style={{ color: 'var(--primary)', fontSize: 18 }} />
-                                        <span style={{ color: 'var(--primary)' }}>FAIRNESS DEBUG</span>
+                                        <span style={{ color: 'var(--primary)' }}>{t('dino.debug.title')}</span>
                                     </div>
                                     <div className="widget-actions">
-                                        <button className="widget-btn-icon" onMouseDown={(e) => e.stopPropagation()} onClick={() => setIsDebugMode(false)}>
+                                        <button className="widget-btn-icon" aria-label={t('dino.debug.tooltip')} onMouseDown={(e) => e.stopPropagation()} onClick={() => setIsDebugMode(false)}>
                                             <CloseOutlined />
                                         </button>
                                     </div>
                                 </div>
                                 <div className="widget-content debug-widget-content">
                                     <div className="debug-row">
-                                        <span className="debug-label">Next Hash:</span>
+                                        <span className="debug-label">{t('dino.debug.nextHash')}</span>
                                         <span className="debug-value">{fairnessData.serverSeedHash?.substring(0, 16) || fairnessData.serverSeed?.substring(0, 16)}...</span>
                                     </div>
                                     <div className="debug-row">
-                                        <span className="debug-label">Client Seed:</span>
+                                        <span className="debug-label">{t('dino.debug.clientSeed')}</span>
                                         <span className="debug-value">{fairnessData.clientSeed?.substring(0, 10)}...</span>
                                     </div>
                                     <div className="debug-row">
-                                        <span className="debug-label">Next Nonce:</span>
+                                        <span className="debug-label">{t('dino.debug.nextNonce')}</span>
                                         <span className="debug-value">{fairnessData.nonce}</span>
                                     </div>
                                     <div className="debug-target">
-                                        DIFFICULTY: <span className="target-bin">{DIFFICULTIES[difficulty].label}</span>
+                                        {t('dino.debug.difficulty')} <span className="target-bin">{DIFFICULTIES[difficulty].label}</span>
                                         <div style={{ fontSize: 13, color: '#fff', marginTop: 4, textShadow: 'none' }}>
-                                            Survival Chance: <span style={{ color: 'var(--primary)' }}>{Math.round(DIFFICULTIES[difficulty].survivalChance * 100)}%</span>
+                                            {t('dino.debug.survival')} <span style={{ color: 'var(--primary)' }}>{Math.round(DIFFICULTIES[difficulty].survivalChance * 100)}%</span>
                                         </div>
                                     </div>
 
                                     {debugData && (
                                         <div className="debug-path-row" style={{ marginTop: 12 }}>
-                                            <div style={{ color: '#b1bad3', fontSize: 11, width: '100%', textAlign: 'center', marginBottom: 4 }}>NEXT ROLL PREDICTION</div>
+                                            <div style={{ color: '#b1bad3', fontSize: 11, width: '100%', textAlign: 'center', marginBottom: 4 }}>{t('dino.debug.prediction')}</div>
                                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                                                 <span style={{ color: '#fff', fontSize: 16 }}>
-                                                    Roll: <span style={{ color: '#00b4d8' }}>{(debugData.roll * 100).toFixed(2)}</span>
+                                                    {t('dino.debug.roll')} <span style={{ color: '#00b4d8' }}>{(debugData.roll * 100).toFixed(2)}</span>
                                                 </span>
                                                 <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>
-                                                    Status: <span style={{ color: debugData.survived ? 'var(--success)' : '#ff4d4f' }}>
-                                                        {debugData.survived ? 'SURVIVE' : 'CRASH'}
+                                                    {t('dino.debug.status')} <span style={{ color: debugData.survived ? 'var(--success)' : '#ff4d4f' }}>
+                                                        {debugData.survived ? t('dino.debug.survive') : t('dino.debug.crash')}
                                                     </span>
                                                 </span>
                                             </div>
@@ -903,8 +906,8 @@ function DinoGame() {
                                     content={
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '4px 8px' }}>
                                             <BulbOutlined style={{ fontSize: 16, color: isDarkMode ? '#f7931a' : '#8c9bac' }} />
-                                            <span style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>Canvas Dark Mode</span>
-                                            <Switch size="small" checked={isDarkMode} onChange={setIsDarkMode} />
+                                            <span style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>{t('dino.canvasDark')}</span>
+                                            <Switch size="small" aria-label={t('dino.canvasDark')} checked={isDarkMode} onChange={setIsDarkMode} />
                                         </div>
                                     }
                                     title={null}
@@ -912,23 +915,23 @@ function DinoGame() {
                                     placement="topLeft"
                                     overlayInnerStyle={{ background: '#1a2c38', border: '1px solid #2a3f4d', borderRadius: 8 }}
                                 >
-                                    <Tooltip title="Settings">
-                                        <Button type="text" icon={<SettingOutlined />} className="control-btn" />
+                                    <Tooltip title={t('dino.settings')}>
+                                        <Button type="text" icon={<SettingOutlined />} aria-label={t('dino.settings')} className="control-btn" />
                                     </Tooltip>
                                 </Popover>
-                                <Tooltip title="Fullscreen">
-                                    <Button type="text" icon={isFullscreen ? <FullscreenExitOutlined /> : <ExpandOutlined />} className="control-btn" onClick={toggleFullscreen} />
+                                <Tooltip title={t('dino.fullscreen')}>
+                                    <Button type="text" icon={isFullscreen ? <FullscreenExitOutlined /> : <ExpandOutlined />} aria-label={t('dino.fullscreen')} className="control-btn" onClick={toggleFullscreen} />
                                 </Tooltip>
-                                <Tooltip title={soundEnabled ? "Mute" : "Unmute"}>
-                                    <Button type="text" icon={<SoundOutlined />} className={`control-btn ${!soundEnabled ? 'muted' : ''}`} onClick={() => setSoundEnabled(!soundEnabled)} />
+                                <Tooltip title={soundEnabled ? t('dino.mute') : t('dino.unmute')}>
+                                    <Button type="text" icon={<SoundOutlined />} aria-label={soundEnabled ? t('dino.mute') : t('dino.unmute')} className={`control-btn ${!soundEnabled ? 'muted' : ''}`} onClick={() => setSoundEnabled(!soundEnabled)} />
                                 </Tooltip>
-                                <Tooltip title="Fairness Debug">
-                                    <Button type="text" icon={<BugOutlined style={{ color: isDebugMode ? 'var(--primary)' : undefined }} />} className={`control-btn ${isDebugMode ? 'active' : ''}`} onClick={() => setIsDebugMode(!isDebugMode)} />
+                                <Tooltip title={t('dino.debug.tooltip')}>
+                                    <Button type="text" icon={<BugOutlined style={{ color: isDebugMode ? 'var(--primary)' : undefined }} />} aria-label={t('dino.debug.tooltip')} className={`control-btn ${isDebugMode ? 'active' : ''}`} onClick={() => setIsDebugMode(!isDebugMode)} />
                                 </Tooltip>
                             </Space>
-                            <span className="logo" style={{ color: 'var(--text-primary)' }}>Stake</span>
+                            <span className="logo" style={{ color: 'var(--text-primary)' }}><Logo size={24} /></span>
                             <Button type="text" icon={<SafetyCertificateOutlined />} className="fairness-btn" onClick={() => setFairnessModalOpen(true)}>
-                                Fairness
+                                {t('dino.fairness')}
                             </Button>
                         </div>
                     </div>
@@ -938,7 +941,7 @@ function DinoGame() {
                 <div className="milestones-bar">
                     <div className="milestones-header">
                         <ThunderboltOutlined />
-                        <span>Multiplier Track ({DIFFICULTIES[difficulty].label})</span>
+                        <span>{t('dino.track', { difficulty: DIFFICULTIES[difficulty].label })}</span>
                     </div>
                     <div className="milestones-list">
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((jump) => {
@@ -948,7 +951,7 @@ function DinoGame() {
                                     key={jump}
                                     className={`milestone-tag ${obstaclesCleared >= jump ? 'achieved' : ''} ${obstaclesCleared + 1 === jump ? 'next' : ''}`}
                                 >
-                                    Jump {jump}: {mult.toFixed(2)}×
+                                    {t('dino.trackJump', { jump, multiplier: formatMultiplier(mult) })}
                                 </Tag>
                             );
                         })}
@@ -962,20 +965,20 @@ function DinoGame() {
                     <div className="widget-header" onMouseDown={handleDragStart}>
                         <div className="widget-title">
                             <LineChartOutlined style={{ fontSize: 20, color: '#94a3b8' }} />
-                            <span>Live Stats</span>
+                            <span>{t('dino.liveStats')}</span>
                         </div>
                         <div className="widget-actions">
-                            <Tooltip title="Reset Live Stats" placement="topRight">
-                                <button className="widget-btn-icon" onMouseDown={(e) => e.stopPropagation()} onClick={() => setWinRecords([])}>
+                            <Tooltip title={t('dino.stats.reset')} placement="topRight">
+                                <button className="widget-btn-icon" aria-label={t('dino.stats.reset')} onMouseDown={(e) => e.stopPropagation()} onClick={() => setWinRecords([])}>
                                     <ReloadOutlined />
                                 </button>
                             </Tooltip>
-                            <Tooltip title="View History" placement="topRight">
-                                <button className="widget-btn-icon" onMouseDown={(e) => e.stopPropagation()} onClick={() => { setHistoryModalOpen(true); setStatsDrawerOpen(false); }}>
+                            <Tooltip title={t('dino.stats.viewHistory')} placement="topRight">
+                                <button className="widget-btn-icon" aria-label={t('dino.stats.viewHistory')} onMouseDown={(e) => e.stopPropagation()} onClick={() => { setHistoryModalOpen(true); setStatsDrawerOpen(false); }}>
                                     <RightOutlined />
                                 </button>
                             </Tooltip>
-                            <button className="widget-btn-icon" onMouseDown={(e) => e.stopPropagation()} onClick={() => setStatsDrawerOpen(false)}>
+                            <button className="widget-btn-icon" aria-label={t('dino.liveStats')} onMouseDown={(e) => e.stopPropagation()} onClick={() => setStatsDrawerOpen(false)}>
                                 <CloseOutlined />
                             </button>
                         </div>
@@ -985,30 +988,30 @@ function DinoGame() {
                         {/* Profit Overview */}
                         <div className="profit-box">
                             <div className="profit-main">
-                                <p className="label">Profit</p>
+                                <p className="label">{t('dino.stats.profit')}</p>
                                 <p className="value" style={{ color: totalProfit >= 0 ? '#4ade80' : '#f87171' }}>
-                                    ₿{totalProfit.toFixed(2)}
+                                    <Coins value={totalProfit} size={16} />
                                 </p>
                             </div>
                             <div className="profit-divider"></div>
                             <div className="profit-stats">
                                 <div className="stat-row">
-                                    <p className="label">Wins</p>
-                                    <p className="value" style={{ color: '#4ade80' }}>{winsCount.toLocaleString()}</p>
+                                    <p className="label">{t('dino.stats.wins')}</p>
+                                    <p className="value" style={{ color: '#4ade80' }}>{formatNumber(winsCount)}</p>
                                 </div>
                                 <div className="stat-row">
-                                    <p className="label">Losses</p>
-                                    <p className="value" style={{ color: '#f87171' }}>{lossesCount.toLocaleString()}</p>
+                                    <p className="label">{t('dino.stats.losses')}</p>
+                                    <p className="value" style={{ color: '#f87171' }}>{formatNumber(lossesCount)}</p>
                                 </div>
                             </div>
                         </div>
 
                         {/* Chart.js Container */}
                         <div className="chart-box" onMouseLeave={() => setHoveredProfitValue(null)}>
-                            <p className="label">Profit History</p>
+                            <p className="label">{t('dino.stats.history')}</p>
                             {hoveredProfitValue !== null && (
                                 <p className="hovered-value" style={{ color: hoveredProfitValue >= 0 ? '#4ade80' : '#f87171' }}>
-                                    {hoveredProfitValue >= 0 ? '' : '-'}₿{Math.abs(hoveredProfitValue).toFixed(2)}
+                                    {hoveredProfitValue >= 0 ? '' : '-'}<Coins value={Math.abs(hoveredProfitValue)} size={14} />
                                 </p>
                             )}
                             <div className="canvas-wrapper">
@@ -1024,7 +1027,7 @@ function DinoGame() {
                 title={
                     <Space className="history-window-header-title">
                         <div className="icon-wrapper"><ThunderboltOutlined /></div>
-                        <span>Play History & Dashboard</span>
+                        <span>{t('dino.history.title')}</span>
                     </Space>
                 }
                 centered
@@ -1039,46 +1042,46 @@ function DinoGame() {
                 <div className="history-window-content">
                     {/* Achievements Summary Style */}
                     <div className="dashboard-section">
-                        <div className="section-title">Lifetime Stats</div>
+                        <div className="section-title">{t('dino.history.lifetime')}</div>
                         <div className="profit-box" style={{ background: 'transparent', padding: 0, border: 'none' }}>
                             <div className="profit-main" style={{ marginBottom: 12 }}>
-                                <p className="label">Total Profit</p>
+                                <p className="label">{t('dino.history.totalProfit')}</p>
                                 <p className="value" style={{ color: totalProfit >= 0 ? '#4ade80' : '#f87171' }}>
-                                    {totalProfit >= 0 ? '+' : ''}₿{totalProfit.toFixed(2)}
+                                    {totalProfit >= 0 ? '+' : ''}<Coins value={totalProfit} size={16} />
                                 </p>
                             </div>
                             <div className="profit-divider" style={{ background: 'rgba(255,255,255,0.05)' }}></div>
                             <div className="profit-stats" style={{ marginTop: 12 }}>
                                 <div className="stat-row">
-                                    <p className="label">Total Wagered</p>
-                                    <p className="value" style={{ color: '#00b4d8' }}>₿{totalWagered.toFixed(2)}</p>
+                                    <p className="label">{t('dino.history.totalWagered')}</p>
+                                    <p className="value" style={{ color: '#00b4d8' }}><Coins value={totalWagered} size={14} /></p>
                                 </div>
                                 <div className="stat-row">
-                                    <p className="label">Best Run</p>
-                                    <p className="value" style={{ color: '#ffd700' }}>{highScore} jumps</p>
+                                    <p className="label">{t('dino.history.bestRun')}</p>
+                                    <p className="value" style={{ color: '#ffd700' }}>{t('dino.history.bestRunValue', { count: highScore })}</p>
                                 </div>
                                 <div className="stat-row">
-                                    <p className="label">Games Played</p>
-                                    <p className="value" style={{ color: '#fff' }}>{gamesPlayed.toLocaleString()}</p>
+                                    <p className="label">{t('dino.history.gamesPlayed')}</p>
+                                    <p className="value" style={{ color: '#fff' }}>{formatNumber(gamesPlayed)}</p>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <div className="dashboard-section">
-                        <div className="section-title">Achievements</div>
+                        <div className="section-title">{t('dino.history.achievements')}</div>
                         <div className="achievements-row">
                             <div className={`achievement-badge ${gamesPlayed > 0 ? 'unlocked' : 'locked'}`}>
                                 <div className="achievement-icon"><StarOutlined /></div>
-                                <div className="achievement-title">First Run</div>
+                                <div className="achievement-title">{t('dino.history.firstRun')}</div>
                             </div>
                             <div className={`achievement-badge ${highScore >= 5 ? 'unlocked' : 'locked'}`}>
                                 <div className="achievement-icon"><FireOutlined /></div>
-                                <div className="achievement-title">Survivor 5</div>
+                                <div className="achievement-title">{t('dino.history.survivor5')}</div>
                             </div>
                             <div className={`achievement-badge ${totalProfit > 0 ? 'unlocked' : 'locked'}`}>
                                 <div className="achievement-icon"><TrophyOutlined /></div>
-                                <div className="achievement-title">In Profit</div>
+                                <div className="achievement-title">{t('dino.history.inProfit')}</div>
                             </div>
                         </div>
                     </div>
@@ -1090,7 +1093,7 @@ function DinoGame() {
                 title={
                     <Space>
                         <SafetyCertificateOutlined style={{ color: 'var(--primary)' }} />
-                        <span>Provably Fair</span>
+                        <span>{t('dino.fair.title')}</span>
                     </Space>
                 }
                 open={fairnessModalOpen}
@@ -1107,13 +1110,13 @@ function DinoGame() {
                 <div className="fairness-header">
                     <Title level={5}>
                         <CheckCircleOutlined style={{ marginRight: 8 }} />
-                        This game is provably fair
+                        {t('dino.fair.heading')}
                     </Title>
-                    <Paragraph>Uses HMAC-SHA256 to generate each jump result from server seed + client seed + nonce.</Paragraph>
+                    <Paragraph>{t('dino.fair.description')}</Paragraph>
                 </div>
 
                 <div className="fairness-item">
-                    <span className="fairness-label">Server Seed (Hash)</span>
+                    <span className="fairness-label">{t('dino.fair.serverHash')}</span>
                     <div className="fairness-value">
                         <Text copyable={{ text: fairnessData.serverSeedHash }} style={{ fontSize: 11, wordBreak: 'break-all' }}>
                             {fairnessData.serverSeedHash?.slice(0, 24)}...
@@ -1122,20 +1125,21 @@ function DinoGame() {
                 </div>
 
                 <div className="fairness-item">
-                    <span className="fairness-label">Client Seed</span>
+                    <span className="fairness-label">{t('dino.fair.clientSeed')}</span>
                     <div className="fairness-value" style={{ display: 'flex', gap: 6 }}>
                         <Input
                             size="small"
+                            aria-label={t('dino.fair.clientSeed')}
                             value={clientSeedInput}
                             onChange={e => setClientSeedInput(e.target.value)}
                             style={{ background: '#2f4553', border: 'none', color: '#fff', flex: 1, fontSize: 12 }}
                         />
-                        <Button size="small" onClick={handleChangeClientSeed} icon={<CheckCircleOutlined />} />
+                        <Button size="small" onClick={handleChangeClientSeed} icon={<CheckCircleOutlined />} aria-label={t('dino.fair.applySeed')} />
                     </div>
                 </div>
 
                 <div className="fairness-item">
-                    <span className="fairness-label">Nonce</span>
+                    <span className="fairness-label">{t('dino.fair.nonce')}</span>
                     <div className="fairness-value">
                         <Text style={{ background: 'rgba(47, 69, 83, 0.5)', padding: '4px 12px', borderRadius: 6, color: '#fff' }}>
                             {fairnessData.nonce}
@@ -1144,7 +1148,7 @@ function DinoGame() {
                 </div>
 
                 <div className="fairness-item">
-                    <span className="fairness-label">Difficulty</span>
+                    <span className="fairness-label">{t('dino.fair.difficulty')}</span>
                     <div className="fairness-value">
                         <Tag color={DIFFICULTIES[difficulty].color === '#35d06f' ? 'success' : DIFFICULTIES[difficulty].color === '#f7931a' ? 'warning' : 'error'}>
                             {DIFFICULTIES[difficulty].label} ({Math.round(DIFFICULTIES[difficulty].survivalChance * 100)}%)
@@ -1157,10 +1161,10 @@ function DinoGame() {
                 {revealedSeed && (
                     <div style={{ marginBottom: 12 }}>
                         <Text type="secondary" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                            Previous Server Seed (Revealed)
+                            {t('dino.fair.previous')}
                         </Text>
                         <div className="fairness-item" style={{ marginTop: 6 }}>
-                            <span className="fairness-label">Seed</span>
+                            <span className="fairness-label">{t('dino.fair.seed')}</span>
                             <div className="fairness-value">
                                 <Text copyable={{ text: revealedSeed.serverSeed }} style={{ fontSize: 10, wordBreak: 'break-all' }}>
                                     {revealedSeed.serverSeed.slice(0, 20)}...
@@ -1168,7 +1172,7 @@ function DinoGame() {
                             </div>
                         </div>
                         <div className="fairness-item">
-                            <span className="fairness-label">Hash</span>
+                            <span className="fairness-label">{t('dino.fair.hash')}</span>
                             <div className="fairness-value">
                                 <Text style={{ fontSize: 10, wordBreak: 'break-all', color: 'var(--primary)' }}>
                                     {revealedSeed.serverSeedHash?.slice(0, 20)}...
@@ -1185,7 +1189,7 @@ function DinoGame() {
                     icon={<SyncOutlined />}
                     onClick={handleRotateSeed}
                 >
-                    Rotate Seed (Reveal Current)
+                    {t('dino.fair.rotate')}
                 </Button>
             </Modal>
         </div>
