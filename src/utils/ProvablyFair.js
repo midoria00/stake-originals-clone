@@ -67,6 +67,45 @@ function generateClientSeed() {
     return result;
 }
 
+// Pure result rules shared by the games, the verification page and the tests.
+// Behaviour is pinned by src/utils/ProvablyFair.test.mjs (golden values from the original code).
+const roundHash = (serverSeed, clientSeed, nonce) => hmacSHA256(serverSeed, `${clientSeed}:${nonce}`);
+
+// First 8 hex chars (32 bits) as a float in [0, 1).
+function floatFromHash(hash) {
+    return parseInt(hash.substr(0, 8), 16) / 0x100000000;
+}
+
+// Results below 0.01 crash instantly at 1.00x; otherwise floor(100 / (1 - r)) / 100, capped at 1000x.
+function crashPointFromFloat(result) {
+    if (result < 0.01) return 1.00;
+    const e = Math.floor((100 / (1 - result))) / 100;
+    return Math.max(1.00, Math.min(e, 1000.00));
+}
+
+// 2 bytes (4 hex chars) per row: right (1) when the 16-bit value is >= 32768. 16 rows use the whole hash.
+function plinkoPathFromHash(hash, rowCount) {
+    const path = [];
+    let binIndex = 0;
+    for (let i = 0; i < rowCount; i++) {
+        const dir = Math.floor((parseInt(hash.substr(i * 4, 4), 16) / 65536) * 2);
+        path.push(dir);
+        binIndex += dir;
+    }
+    return { path, binIndex };
+}
+
+// Partial Fisher-Yates over the 25 tiles, 2 bytes of the hash per swap (offsets wrap after 16 mines).
+function minePositionsFromHash(hash, minesCount) {
+    const tiles = Array.from({ length: 25 }, (_, i) => i);
+    for (let i = 0; i < minesCount; i++) {
+        const value = parseInt(hash.substr((i * 4) % 64, 4), 16);
+        const swapIdx = i + (value % (25 - i));
+        [tiles[i], tiles[swapIdx]] = [tiles[swapIdx], tiles[i]];
+    }
+    return tiles.slice(0, minesCount).sort((a, b) => a - b);
+}
+
 /**
  * ProvablyFair class - manages seed rotation and result generation
  */
@@ -94,34 +133,18 @@ class ProvablyFair {
      */
     async getResult() {
         await this._hashReady;
-        const message = `${this.clientSeed}:${this.nonce}`;
-        const hash = await hmacSHA256(this.serverSeed, message);
-
-        // Use first 8 hex chars (32 bits) to get a float [0, 1)
-        const int = parseInt(hash.substr(0, 8), 16);
-        const result = int / 0x100000000; // Divide by 2^32
-
+        const result = floatFromHash(await roundHash(this.serverSeed, this.clientSeed, this.nonce));
         this.nonce++;
         return result;
     }
 
     /**
-     * Generate a crash point from HMAC result
-     * Uses the same formula as Stake: 
-     *   crashPoint = max(1, floor(99 / (1 - result)) / 100)
-     * With house edge of ~1%
+     * Generate a crash point from HMAC result (see crashPointFromFloat).
+     * Note: with 100 / (1 - r), P(crash >= x) = 1 / x for x >= 1.02, i.e. a 100% theoretical return.
      * @returns {Promise<number>}
      */
     async generateCrashPoint() {
-        const result = await this.getResult();
-
-        // 1% instant crash (house edge)
-        const houseEdge = 0.01;
-        if (result < houseEdge) return 1.00;
-
-        // Formula: e = 99 / (1 - r)  =>  result in [1.00, ∞)
-        const e = Math.floor((100 / (1 - result))) / 100;
-        return Math.max(1.00, Math.min(e, 1000.00));
+        return crashPointFromFloat(await this.getResult());
     }
 
     /**
@@ -145,11 +168,7 @@ class ProvablyFair {
      */
     async peekDinoStep(survivalChance) {
         await this._hashReady;
-        const message = `${this.clientSeed}:${this.nonce}`;
-        const hash = await hmacSHA256(this.serverSeed, message);
-
-        const int = parseInt(hash.substr(0, 8), 16);
-        const roll = int / 0x100000000;
+        const roll = floatFromHash(await roundHash(this.serverSeed, this.clientSeed, this.nonce));
 
         return {
             survived: roll < survivalChance,
@@ -165,34 +184,8 @@ class ProvablyFair {
      */
     async generatePlinkoPath(rowCount) {
         await this._hashReady;
-        const message = `${this.clientSeed}:${this.nonce}`;
-        const hash = await hmacSHA256(this.serverSeed, message);
-
-        const path = [];
-        let binIndex = 0;
-
-        // Follow Stake's exact float calculation
-        // Extract 4 bytes at a time per row to convert to a float [0, 1)
-        for (let i = 0; i < rowCount; i++) {
-            const hexOffset = i * 4 * 2; // Each round needs 4 bytes = 8 hex chars
-            const byteStr = hash.substr(hexOffset, 8);
-
-            // Reached end of 256-bit hash (32 bytes = 64 chars)? Wait, Plinko is max 16 rows.
-            // 16 rows * 8 chars = 128 chars needed... wait, SHA-256 is only 64 chars!
-
-            // Correct approach: if using 1 byte per row, modulo 2 is sometimes biased in JS.
-            // Let's use 4 hex chars (2 bytes) per row => 16 rows * 4 = 64 chars (Perfect match for SHA-256)
-            const chunk = hash.substr(i * 4, 4);
-            const value = parseInt(chunk, 16);
-            const floatValue = value / 65536; // 16-bit integer max
-
-            // floatValue gives [0, 1). 
-            // Multiple by 2 and floor to get exactly 0 or 1.
-            const dir = Math.floor(floatValue * 2);
-
-            path.push(dir);
-            binIndex += dir;
-        }
+        const hash = await roundHash(this.serverSeed, this.clientSeed, this.nonce);
+        const { path, binIndex } = plinkoPathFromHash(hash, rowCount);
 
         this.nonce++;
         return {
@@ -210,21 +203,8 @@ class ProvablyFair {
      */
     async peekPlinkoPath(rowCount) {
         await this._hashReady;
-        const message = `${this.clientSeed}:${this.nonce}`;
-        const hash = await hmacSHA256(this.serverSeed, message);
-
-        const path = [];
-        let binIndex = 0;
-
-        for (let i = 0; i < rowCount; i++) {
-            const chunk = hash.substr(i * 4, 4);
-            const value = parseInt(chunk, 16);
-            const floatValue = value / 65536;
-            const dir = Math.floor(floatValue * 2);
-
-            path.push(dir);
-            binIndex += dir;
-        }
+        const hash = await roundHash(this.serverSeed, this.clientSeed, this.nonce);
+        const { path, binIndex } = plinkoPathFromHash(hash, rowCount);
 
         return {
             path,
@@ -243,27 +223,8 @@ class ProvablyFair {
      */
     async generateMinesPositions(minesCount) {
         await this._hashReady;
-        const message = `${this.clientSeed}:${this.nonce}`;
-        const hash = await hmacSHA256(this.serverSeed, message);
-
-        // Create array [0..24] representing all tile positions
-        const tiles = Array.from({ length: 25 }, (_, i) => i);
-
-        // Fisher-Yates shuffle using hash bytes as entropy source
-        // We need minesCount swaps, each consuming 4 hex chars (2 bytes)
-        for (let i = 0; i < minesCount; i++) {
-            const hexOffset = (i * 4) % 64; // Wrap around if needed
-            const chunk = hash.substr(hexOffset, 4);
-            const value = parseInt(chunk, 16);
-            // Pick from remaining positions [i..24]
-            const remaining = 25 - i;
-            const swapIdx = i + (value % remaining);
-            // Swap
-            [tiles[i], tiles[swapIdx]] = [tiles[swapIdx], tiles[i]];
-        }
-
-        // First minesCount elements are where mines go
-        const minePositions = tiles.slice(0, minesCount).sort((a, b) => a - b);
+        const hash = await roundHash(this.serverSeed, this.clientSeed, this.nonce);
+        const minePositions = minePositionsFromHash(hash, minesCount);
 
         this.nonce++;
         return {
@@ -280,21 +241,8 @@ class ProvablyFair {
      */
     async peekMinesPositions(minesCount) {
         await this._hashReady;
-        const message = `${this.clientSeed}:${this.nonce}`;
-        const hash = await hmacSHA256(this.serverSeed, message);
-
-        const tiles = Array.from({ length: 25 }, (_, i) => i);
-
-        for (let i = 0; i < minesCount; i++) {
-            const hexOffset = (i * 4) % 64;
-            const chunk = hash.substr(hexOffset, 4);
-            const value = parseInt(chunk, 16);
-            const remaining = 25 - i;
-            const swapIdx = i + (value % remaining);
-            [tiles[i], tiles[swapIdx]] = [tiles[swapIdx], tiles[i]];
-        }
-
-        const minePositions = tiles.slice(0, minesCount).sort((a, b) => a - b);
+        const hash = await roundHash(this.serverSeed, this.clientSeed, this.nonce);
+        const minePositions = minePositionsFromHash(hash, minesCount);
 
         return {
             minePositions,
@@ -361,18 +309,18 @@ class ProvablyFair {
      * @returns {Promise<{hash: string, result: number}>}
      */
     static async verify(serverSeed, clientSeed, nonce) {
-        const message = `${clientSeed}:${nonce}`;
-        const hash = await hmacSHA256(serverSeed, message);
-        const int = parseInt(hash.substr(0, 8), 16);
-        const result = int / 0x100000000;
+        const hash = await roundHash(serverSeed, clientSeed, nonce);
 
         return {
             hash,
-            result,
+            result: floatFromHash(hash),
             serverSeedHash: await sha256(serverSeed),
         };
     }
 }
 
-export { ProvablyFair, sha256, hmacSHA256, generateSeed, generateClientSeed };
+export {
+    ProvablyFair, sha256, hmacSHA256, generateSeed, generateClientSeed,
+    roundHash, floatFromHash, crashPointFromFloat, plinkoPathFromHash, minePositionsFromHash,
+};
 export default ProvablyFair;

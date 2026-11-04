@@ -1,5 +1,6 @@
 // DinoGame - React Wrapper integrating original Phaser game with betting
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { DINO_SURVIVAL } from './difficulties';
 import Phaser from 'phaser';
 import {
     Button,
@@ -60,9 +61,9 @@ const { Text, Title, Paragraph } = Typography;
 
 // Difficulty presets
 const DIFFICULTIES = {
-    easy: { label: 'Easy', survivalChance: 0.85, multiplierPerJump: 1.15, color: '#35d06f' },
-    medium: { label: 'Medium', survivalChance: 0.65, multiplierPerJump: 1.40, color: '#f7931a' },
-    hard: { label: 'Hard', survivalChance: 0.45, multiplierPerJump: 1.90, color: '#ed4245' },
+    easy: { label: 'Easy', survivalChance: DINO_SURVIVAL.easy, multiplierPerJump: 1.15, color: '#35d06f' },
+    medium: { label: 'Medium', survivalChance: DINO_SURVIVAL.medium, multiplierPerJump: 1.40, color: '#f7931a' },
+    hard: { label: 'Hard', survivalChance: DINO_SURVIVAL.hard, multiplierPerJump: 1.90, color: '#ed4245' },
 };
 
 const DEFAULT_BALANCE = 200;
