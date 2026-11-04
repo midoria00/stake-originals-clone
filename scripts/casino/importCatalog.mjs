@@ -27,6 +27,24 @@ export function parseArgs(argv) {
     return args
 }
 
+// slot.report /api/v1/slots.json, fields as documented at https://slot.report/api/ -> catalog fields.
+// Its "slug" is kept as the original id; it has no images and no demos.
+export function fromSlotReport(input) {
+    const results = Array.isArray(input) ? input : input?.results
+    if (!Array.isArray(results)) throw new Error('Arquivo do slot.report sem a lista "results".')
+    return results.map((slot) => ({
+        provider: slot?.provider_slug || slot?.provider,
+        externalId: slot?.slug,
+        name: slot?.name,
+        category: 'slots',
+        rtp: slot?.rtp,
+        volatility: slot?.volatility,
+        features: slot?.features,
+        maxWin: slot?.max_win,
+        releasedAt: slot?.release_date,
+    }))
+}
+
 export function mergeCatalog(current, { source, entries, authorization, file, replace = false, now = new Date() }) {
     if (!isSourceId(source)) throw new Error(`Fonte desconhecida: ${source}`)
     if (!authorization || authorization.trim().length < 5) throw new Error('Informe --authorization com a referência da autorização de uso do catálogo.')
@@ -68,14 +86,17 @@ async function main() {
     const current = JSON.parse(await readFile(CATALOG_PATH, 'utf8'))
     const { catalog, record, rejected } = mergeCatalog(current, {
         source: args.source,
-        entries: Array.isArray(input) ? input : input?.games,
+        entries: args.source === 'slot-report' ? fromSlotReport(input) : Array.isArray(input) ? input : input?.games,
         authorization: args.authorization,
         file: args.file,
         replace: Boolean(args.replace),
     })
     await writeFile(CATALOG_PATH, `${JSON.stringify(catalog, null, 2)}\n`)
     console.log(`Importação concluída: ${record.accepted} aceitos, ${record.rejected} rejeitados, ${record.duplicates} duplicados; catálogo com ${catalog.games.length} jogos externos.`)
-    for (const item of rejected.slice(0, 20)) console.log(`  #${item.position}: ${item.error}`)
+    // Grouped reasons, e.g. "37 × provedor fora do cadastro: NoLimit City" tells which providers to register.
+    const reasons = new Map()
+    for (const item of rejected) reasons.set(item.error, (reasons.get(item.error) ?? 0) + 1)
+    for (const [reason, count] of [...reasons].sort((a, b) => b[1] - a[1]).slice(0, 40)) console.log(`  ${count} × ${reason}`)
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {

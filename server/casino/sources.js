@@ -20,6 +20,8 @@ const LIST = [
     { id: 'pragmatic-direct', name: 'Pragmatic Play (direta)', kind: 'direct', providers: ['pragmatic-play'] },
     // Catalog exported by an authorized partner and imported with scripts/casino/importCatalog.mjs.
     { id: 'catalog-import', name: 'Catálogo autorizado importado', kind: 'import' },
+    // Slot metadata whose API terms allow caching and redistribution (docs/casino-sources-review.md). No demos.
+    { id: 'slot-report', name: 'slot.report (metadados)', kind: 'import' },
 ]
 
 export const SOURCES = LIST.map((source) => ({ providers: null, ...source, envKey: `CASINO_SOURCE_${source.id.toUpperCase().replace(/-/g, '_')}` }))

@@ -6,7 +6,7 @@ import { fetchGames, fetchLaunch } from '../casino/api'
 import { favoriteId } from '../casino/components'
 import Page from '../components/Page'
 import { t } from '../i18n'
-import { formatNumber } from '../i18n/format'
+import { formatDate, formatNumber } from '../i18n/format'
 import { useFavoriteGames } from '../lib/storage'
 
 const percent = (value) => `${formatNumber(value, 2)}%`
@@ -25,9 +25,15 @@ function Details({ game }) {
             <div><dt>{t('casino.game.volatility')}</dt><dd>{game.volatility ? t(`casino.game.volatilities.${game.volatility}`) : t('casino.game.unknown')}</dd></div>
             <div><dt>{t('casino.game.platforms')}</dt><dd>{game.platforms.length ? game.platforms.map((p) => t(`casino.game.platformNames.${p}`)).join(', ') : t('casino.game.unknown')}</dd></div>
             <div><dt>{t('casino.game.languages')}</dt><dd>{game.languages.length ? game.languages.join(', ') : t('casino.game.unknown')}</dd></div>
+            <div><dt>{t('casino.game.maxWin')}</dt><dd>{game.maxWin ? `${formatNumber(game.maxWin)}×` : t('casino.game.unknown')}</dd></div>
+            <div><dt>{t('casino.game.releasedAt')}</dt><dd>{game.releasedAt ? formatDate(`${game.releasedAt}T12:00:00Z`) : t('casino.game.unknown')}</dd></div>
+            <div><dt>{t('casino.game.features')}</dt><dd>{game.features?.length ? game.features.map((f) => f.replace(/-/g, ' ')).join(', ') : t('casino.game.unknown')}</dd></div>
         </dl>
     )
 }
+
+// The source must be named (slot.report terms: "Do not misrepresent the data source").
+const SOURCE_NOTES = { 'slot-report': 'casino.game.sourceSlotReport' }
 
 export default function GameLaunchPage() {
     const { id } = useParams()
@@ -127,6 +133,7 @@ export default function GameLaunchPage() {
                 <div className="page-section__head"><h2 id="game-details">{t('casino.game.details')}</h2></div>
                 {game.description && <p>{game.description}</p>}
                 <Details game={game} />
+                {SOURCE_NOTES[game.source] && <p className="muted">{t(SOURCE_NOTES[game.source])}</p>}
             </section>
         </Page>
     )

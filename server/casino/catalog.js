@@ -9,7 +9,7 @@ export const PAGE_SIZE = 24
 export const MAX_PAGE_SIZE = 48
 export const SORTS = ['featured', 'az', 'recent']
 const PLATFORMS = ['desktop', 'mobile']
-const VOLATILITY = ['low', 'medium-low', 'medium', 'medium-high', 'high', 'very-high']
+const VOLATILITY = ['low', 'medium-low', 'medium', 'medium-high', 'high', 'very-high', 'extreme']
 
 export const fold = (text) => String(text ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
 
@@ -66,6 +66,9 @@ export function normalizeGame(raw, source, now = new Date()) {
             // Only what the feed documents: RTP and volatility are never estimated here.
             rtp: raw.rtp == null ? null : rtpRange(raw.rtp, source),
             volatility: VOLATILITY.includes(fold(raw.volatility).replace(/\s+/g, '-')) ? fold(raw.volatility).replace(/\s+/g, '-') : null,
+            features: Array.isArray(raw.features) ? [...new Set(raw.features.map((f) => text(f, 30)).filter(Boolean))].slice(0, 12) : [],
+            maxWin: Number.isInteger(raw.maxWin) && raw.maxWin > 0 && raw.maxWin <= 10_000_000 ? raw.maxWin : null,
+            releasedAt: Number.isFinite(Date.parse(raw.releasedAt)) ? new Date(Date.parse(raw.releasedAt)).toISOString().slice(0, 10) : null,
             availability: raw.available === false ? 'unavailable' : 'available',
             // A demo counts only when the feed marks an official demo; launching still needs a configured source.
             demo: { available: demoUrlAllowed, mode: demoUrlAllowed ? 'official' : null, ...(demoUrl ? { url: demoUrl } : {}) },
@@ -122,6 +125,9 @@ export const inHouseGames = () => GAMES.map((game) => ({
     languages: ['pt-BR'],
     rtp: IN_HOUSE[game.id]?.rtp ?? null,
     volatility: null,
+    features: [],
+    maxWin: null,
+    releasedAt: null,
     availability: 'available',
     demo: { available: true, mode: 'in-house' },
     integrationStatus: 'in_house',

@@ -90,7 +90,11 @@ export default {
         platforms: 'Plataformas',
         languages: 'Idiomas',
         unknown: 'Não informado pela fonte',
-        volatilities: { low: 'Baixa', 'medium-low': 'Média-baixa', medium: 'Média', 'medium-high': 'Média-alta', high: 'Alta', 'very-high': 'Muito alta' },
+        maxWin: 'Ganho máximo',
+        releasedAt: 'Lançamento',
+        features: 'Características',
+        sourceSlotReport: 'Fonte dos dados: slot.report. O RTP informado é o da maior configuração disponível; cada cassino pode usar uma configuração menor.',
+        volatilities: { low: 'Baixa', 'medium-low': 'Média-baixa', medium: 'Média', 'medium-high': 'Média-alta', high: 'Alta', 'very-high': 'Muito alta', extreme: 'Extrema' },
         platformNames: { desktop: 'Computador', mobile: 'Celular' },
         reasons: {
             integration_not_configured: 'A integração com este provedor ainda não foi configurada, então o jogo não pode ser aberto aqui.',

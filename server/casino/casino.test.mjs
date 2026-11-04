@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { mergeCatalog } from '../../scripts/casino/importCatalog.mjs'
+import { fromSlotReport, mergeCatalog } from '../../scripts/casino/importCatalog.mjs'
 import { handleAdmin, MIN_TOKEN_LENGTH } from './admin.js'
 import { mapCategory } from './categories.js'
 import { buildIndex, dedupeGames, normalizeGame, queryGames, resolveProviderId } from './catalog.js'
@@ -167,4 +167,30 @@ test('import: needs a known source and an authorization reference; records the i
     const replaced = mergeCatalog(catalog, { source: 'hub88', entries: FIXTURE.slice(0, 1), authorization: 'Contrato de teste', replace: true })
     assert.equal(replaced.catalog.games.length, 1)
     assert.equal(replaced.catalog.imports.length, 2)
+})
+
+// Fixture follows the field list documented at https://slot.report/api/ (test-only names).
+test('slot.report import keeps the original slug and documented fields, with no images or demos', () => {
+    const entries = fromSlotReport({ results: [
+        { name: 'Slot de Teste Um', slug: 'slot-de-teste-um', provider: 'Pragmatic Play', provider_slug: 'pragmatic-play', rtp: 96.5, volatility: 'extreme', max_win: 5000, features: ['free-spins', 'multiplier'], release_date: '2021-02-25', image: 'https://img.example.test/a.png' },
+        { name: 'Slot de Teste Dois', slug: 'slot-de-teste-dois', provider: 'Outra Empresa', provider_slug: 'outra-empresa', rtp: 96 },
+        { name: 'Slot de Teste Um', slug: 'slot-de-teste-um', provider: 'Pragmatic Play', provider_slug: 'pragmatic-play' },
+    ] })
+    const { catalog, record, rejected } = mergeCatalog({ games: [], imports: [] }, { source: 'slot-report', entries, authorization: 'slot.report API Terms (12/04/2026)' })
+    assert.deepEqual([record.accepted, record.rejected, record.duplicates], [2, 1, 1])
+    assert.match(rejected[0].error, /fora do cadastro: outra-empresa/)
+    const [game] = catalog.games
+    assert.equal(game.id, 'pragmatic-play:slot-de-teste-um')
+    assert.equal(game.externalId, 'slot-de-teste-um')
+    assert.deepEqual(game.rtp, { min: 96.5, max: 96.5, verifiedBy: 'slot-report' })
+    assert.equal(game.volatility, 'extreme')
+    assert.equal(game.maxWin, 5000)
+    assert.deepEqual(game.features, ['free-spins', 'multiplier'])
+    assert.equal(game.releasedAt, '2021-02-25')
+    assert.equal(game.image, null, 'images are never imported from this source')
+    assert.equal(game.demo.available, false)
+    assert.equal(game.integrationStatus, 'catalog_only')
+    assert.throws(() => fromSlotReport({}), /results/)
+    const service = createCasinoService({ env: {}, catalog: loadCatalog(catalog) })
+    assert.deepEqual(service.launch(new URLSearchParams('game=pragmatic-play:slot-de-teste-um')), { available: false, reason: 'demo_unavailable' })
 })
