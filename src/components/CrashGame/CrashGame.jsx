@@ -48,6 +48,9 @@ import PlayerBets from './PlayerBets'
 import PlayerResults from './PlayerResults'
 import ProvablyFair from '../../utils/ProvablyFair'
 import { useWallet } from '../../context/WalletContext'
+import { Logo, Coins } from '../../brand/Brand'
+import { t } from '../../i18n'
+import { formatCoins, formatMultiplier, formatNumber } from '../../i18n/format'
 import './CrashGame.css'
 
 const { Text, Title, Paragraph } = Typography
@@ -129,8 +132,8 @@ function CrashGame() {
     // Provably Fair state
     const fairnessRef = useRef(null)
     const [fairnessData, setFairnessData] = useState({
-        serverSeedHash: 'Loading...',
-        clientSeed: 'Loading...',
+        serverSeedHash: '…',
+        clientSeed: '…',
         nonce: 0,
     })
     const [revealedSeed, setRevealedSeed] = useState(null)
@@ -173,15 +176,15 @@ function CrashGame() {
             if (gameDisplayRef.current) {
                 gameDisplayRef.current.requestFullscreen().then(() => {
                     setIsFullscreen(true)
-                    messageApi.success('Entered fullscreen mode')
+                    messageApi.success(t('crash.fullscreenEntered'))
                 }).catch(err => {
-                    messageApi.error('Could not enter fullscreen')
+                    messageApi.error(t('crash.fullscreenFailed'))
                 })
             }
         } else {
             document.exitFullscreen().then(() => {
                 setIsFullscreen(false)
-                messageApi.info('Exited fullscreen mode')
+                messageApi.info(t('crash.fullscreenExited'))
             })
         }
     }, [messageApi])
@@ -258,7 +261,7 @@ function CrashGame() {
                     labels: Array(profitHistory.length).fill(0),
                     datasets: [
                         {
-                            label: 'Profit',
+                            label: t('crash.profit'),
                             data: profitHistory,
                             fill: {
                                 target: 'origin',
@@ -365,7 +368,7 @@ function CrashGame() {
             if (betPlaced) {
                 // User didn't cash out in time, lost bet
                 profit = -userBetData.amount
-                showToast('loss', 'You Lost!', `-₿${userBetData.amount.toFixed(2)} — Crashed @${crashMultiplier.toFixed(2)}×`, 4000)
+                showToast('loss', t('crash.lostTitle'), t('crash.lostBody', { amount: formatCoins(userBetData.amount), multiplier: formatMultiplier(crashMultiplier) }), 4000)
             } else {
                 // User cashed out
                 profit = parseFloat(userBetData.profit) - userBetData.amount
@@ -457,25 +460,25 @@ function CrashGame() {
     }, [startCountdown])
 
     const handleBet = (amount) => {
+        const insufficient = () => showToast('error', t('games.insufficientTitle'), t('crash.insufficientBody', { need: formatCoins(amount), have: formatCoins(balance) }))
         if (amount > balance) {
-            showToast('error', 'Insufficient Balance', `You need ₿${amount.toFixed(2)} but only have ₿${balance.toFixed(2)}`)
+            insufficient()
             return
         }
-        if (!placeBet(amount)) {
-            showToast('error', 'Insufficient Balance', `You need ₿${amount.toFixed(2)} but only have ₿${balance.toFixed(2)}`)
+        if (!placeBet(amount, 'crash')) {
+            insufficient()
             return
         }
         setBetAmount(amount)
         setBetPlaced(true)
         setUserBetData({
-            name: 'You',
+            name: t('crash.you'),
             amount: amount,
-            currency: { symbol: '₿', color: '#f7931a', name: 'BTC' },
             active: true,
             cashoutAt: null,
             profit: null
         })
-        showToast('bet', 'Bet Placed', `₿${amount.toFixed(2)}`, 2500)
+        showToast('bet', t('games.betPlaced'), t('crash.betBody', { amount: formatCoins(amount) }), 2500)
     }
 
     // Handle cashout
@@ -483,7 +486,7 @@ function CrashGame() {
         if (phase === PHASE.RUNNING && betPlaced) {
             const winAmount = betAmount * multiplier
             const profit = winAmount - betAmount
-            addWinnings(winAmount)
+            addWinnings(winAmount, 'crash')
             setBetPlaced(false)
             setUserBetData(prev => prev ? {
                 ...prev,
@@ -492,14 +495,14 @@ function CrashGame() {
                 profit: winAmount.toFixed(2)
             } : null)
 
-            showToast('win', 'You Won!', `+₿${profit.toFixed(2)} at ${multiplier.toFixed(2)}×`, 4000)
+            showToast('win', t('games.youWon'), t('crash.wonBody', { amount: formatCoins(profit), multiplier: formatMultiplier(multiplier) }), 4000)
         }
     }
 
     // Copy to clipboard
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text)
-        messageApi.success('Copied to clipboard!')
+        messageApi.success(t('crash.copied'))
     }
 
     // Handle client seed change
@@ -528,7 +531,7 @@ function CrashGame() {
 
             <div className="game-container">
                 {/* Betting Panel + Player Bets */}
-                <MobileBetSheet title="Crash bet controls" className="crash-bet-sheet">
+                <MobileBetSheet title={t('crash.betControls')} className="crash-bet-sheet">
                     <div className="crash-sidebar">
                         <BettingPanel
                             phase={phase}
@@ -554,7 +557,8 @@ function CrashGame() {
                                 <button
                                     className={`footer-btn ${historyDrawerOpen ? 'active' : ''}`}
                                     onClick={() => setHistoryDrawerOpen(true)}
-                                    title="Play History & Dashboard"
+                                    title={t('crash.historyDashboard')}
+                                    aria-label={t('crash.historyDashboard')}
                                 >
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
@@ -563,7 +567,8 @@ function CrashGame() {
                                 <button
                                     className={`footer-btn ${statsDrawerOpen ? 'active' : ''}`}
                                     onClick={() => setStatsDrawerOpen(true)}
-                                    title="Live Stats"
+                                    title={t('crash.liveStats')}
+                                    aria-label={t('crash.liveStats')}
                                 >
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M16 11.78l4.24-7.33 1.73 1-5.23 9.05-6.51-3.75L5.46 19H22v2H2V3h2v14.54L9.5 8z" />
@@ -572,7 +577,8 @@ function CrashGame() {
                                 <button
                                     className="footer-btn"
                                     onClick={() => setFairnessModalOpen(true)}
-                                    title="Provably Fair"
+                                    title={t('crash.fairTitle')}
+                                    aria-label={t('crash.fairTitle')}
                                 >
                                     <SafetyCertificateOutlined style={{ fontSize: 18 }} />
                                 </button>
@@ -598,8 +604,8 @@ function CrashGame() {
                     )}
 
                     {isMobileLayout && (
-                        <section className="crash-mobile-tabs" aria-label="Crash player data">
-                            <div role="tablist" aria-label="Player data">
+                        <section className="crash-mobile-tabs" aria-label={t('crash.playerData')}>
+                            <div role="tablist" aria-label={t('crash.mobileData')}>
                                 {['bets', 'results'].map((tab, index, tabs) => (
                                     <button
                                         key={tab}
@@ -619,7 +625,7 @@ function CrashGame() {
                                             document.getElementById(`crash-${nextTab}-tab`)?.focus()
                                         }}
                                     >
-                                        {tab === 'bets' ? 'Bets' : 'Results'}
+                                        {tab === 'bets' ? t('crash.betsTab') : t('crash.resultsTab')}
                                     </button>
                                 ))}
                             </div>
@@ -649,7 +655,7 @@ function CrashGame() {
                                 title={
                                     <div>
                                         <div style={{ marginBottom: 8 }}>
-                                            <Text style={{ color: '#fff' }}>Show Player Bets</Text>
+                                            <Text style={{ color: '#fff' }}>{t('crash.showPlayerBets')}</Text>
                                             <Switch
                                                 size="small"
                                                 checked={showPlayerBets}
@@ -658,7 +664,7 @@ function CrashGame() {
                                             />
                                         </div>
                                         <div>
-                                            <Text style={{ color: '#fff' }}>Show Player Results</Text>
+                                            <Text style={{ color: '#fff' }}>{t('crash.showPlayerResults')}</Text>
                                             <Switch
                                                 size="small"
                                                 checked={showPlayerResults}
@@ -675,15 +681,17 @@ function CrashGame() {
                                     type="text"
                                     icon={<SettingOutlined />}
                                     className="control-btn-antd"
+                                    aria-label={t('crash.settings')}
                                 />
                             </Tooltip>
 
                             {/* Fullscreen Button */}
-                            <Tooltip title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}>
+                            <Tooltip title={isFullscreen ? t('crash.exitFullscreen') : t('games.fullscreen')}>
                                 <Button
                                     type="text"
                                     icon={isFullscreen ? <FullscreenExitOutlined /> : <ExpandOutlined />}
                                     className="control-btn-antd"
+                                    aria-label={isFullscreen ? t('crash.exitFullscreen') : t('games.fullscreen')}
                                     onClick={toggleFullscreen}
                                 />
                             </Tooltip>
@@ -698,9 +706,9 @@ function CrashGame() {
                                         onChange={(e) => setLayout(e.target.value)}
                                         size="small"
                                     >
-                                        <Radio.Button value="default">Default</Radio.Button>
-                                        <Radio.Button value="compact">Compact</Radio.Button>
-                                        <Radio.Button value="wide">Wide</Radio.Button>
+                                        <Radio.Button value="default">{t('crash.layoutDefault')}</Radio.Button>
+                                        <Radio.Button value="compact">{t('crash.layoutCompact')}</Radio.Button>
+                                        <Radio.Button value="wide">{t('crash.layoutWide')}</Radio.Button>
                                     </Radio.Group>
                                 }
                                 trigger="click"
@@ -710,21 +718,23 @@ function CrashGame() {
                                     type="text"
                                     icon={<AppstoreOutlined />}
                                     className="control-btn-antd"
+                                    aria-label={t('crash.layout')}
                                 />
                             </Tooltip>
 
                             {/* Sound Button */}
-                            <Tooltip title={soundEnabled ? 'Mute Sound' : 'Enable Sound'}>
+                            <Tooltip title={soundEnabled ? t('games.soundOff') : t('games.soundOn')}>
                                 <Button
                                     type="text"
                                     icon={<SoundOutlined />}
                                     className={`control-btn-antd ${!soundEnabled ? 'muted' : ''}`}
+                                    aria-label={soundEnabled ? t('games.soundOff') : t('games.soundOn')}
                                     onClick={() => setSoundEnabled(!soundEnabled)}
                                 />
                             </Tooltip>
                         </Space>
 
-                        <span className="logo" style={{ color: 'var(--text-primary)' }}>Stake</span>
+                        <span className="logo"><Logo size={22} /></span>
 
                         {/* Fairness Button */}
                         <Button
@@ -733,7 +743,7 @@ function CrashGame() {
                             className="fairness-btn"
                             onClick={() => setFairnessModalOpen(true)}
                         >
-                            Fairness
+                            {t('games.fairness')}
                         </Button>
                     </div>
                 </div>
@@ -742,9 +752,10 @@ function CrashGame() {
             {/* Hot Bet Banner */}
             <div className="hot-bet-banner">
                 <Tag color="purple" className="mega-tag">
-                    🔥 611,100.00×
+                    🔥 {formatCoins(611100)}×
                 </Tag>
-                <Text type="secondary">ogicjp won big!</Text>
+                <Tag>{t('crash.simulatedShort')}</Tag>
+                <Text type="secondary">{t('crash.hotBetNote')}</Text>
             </div>
 
             {/* Statistics Mini Window / Profit Chart */}
@@ -753,15 +764,15 @@ function CrashGame() {
                     <div className="widget-header" onMouseDown={handleDragStart}>
                         <div className="widget-title">
                             <LineChartOutlined style={{ fontSize: 20, color: '#94a3b8' }} />
-                            <span>Live Stats</span>
+                            <span>{t('crash.liveStats')}</span>
                         </div>
                         <div className="widget-actions">
-                            <Tooltip title="Reset Live Stats" placement="topRight">
-                                <button className="widget-btn-icon" onMouseDown={(e) => e.stopPropagation()} onClick={() => setGameRecords([])}>
+                            <Tooltip title={t('crash.resetStats')} placement="topRight">
+                                <button className="widget-btn-icon" aria-label={t('crash.resetStats')} onMouseDown={(e) => e.stopPropagation()} onClick={() => setGameRecords([])}>
                                     <ReloadOutlined />
                                 </button>
                             </Tooltip>
-                            <button className="widget-btn-icon" onMouseDown={(e) => e.stopPropagation()} onClick={() => setStatsDrawerOpen(false)}>
+                            <button className="widget-btn-icon" aria-label={t('crash.close')} onMouseDown={(e) => e.stopPropagation()} onClick={() => setStatsDrawerOpen(false)}>
                                 <CloseOutlined />
                             </button>
                         </div>
@@ -771,30 +782,30 @@ function CrashGame() {
                         {/* Profit Overview */}
                         <div className="profit-box">
                             <div className="profit-main">
-                                <p className="label">Profit</p>
+                                <p className="label">{t('crash.profit')}</p>
                                 <p className="value" style={{ color: totalProfit >= 0 ? '#4ade80' : '#f87171' }}>
-                                    ₿{totalProfit.toFixed(2)}
+                                    <Coins value={totalProfit} />
                                 </p>
                             </div>
                             <div className="profit-divider"></div>
                             <div className="profit-stats">
                                 <div className="stat-row">
-                                    <p className="label">Wins</p>
-                                    <p className="value" style={{ color: '#4ade80' }}>{winsCount.toLocaleString()}</p>
+                                    <p className="label">{t('crash.wins')}</p>
+                                    <p className="value" style={{ color: '#4ade80' }}>{formatNumber(winsCount)}</p>
                                 </div>
                                 <div className="stat-row">
-                                    <p className="label">Losses</p>
-                                    <p className="value" style={{ color: '#f87171' }}>{lossesCount.toLocaleString()}</p>
+                                    <p className="label">{t('crash.losses')}</p>
+                                    <p className="value" style={{ color: '#f87171' }}>{formatNumber(lossesCount)}</p>
                                 </div>
                             </div>
                         </div>
 
                         {/* Chart.js Container */}
                         <div className="chart-box" onMouseLeave={() => setHoveredProfitValue(null)}>
-                            <p className="label">Profit History</p>
+                            <p className="label">{t('crash.profitHistory')}</p>
                             {hoveredProfitValue !== null && (
                                 <p className="hovered-value" style={{ color: hoveredProfitValue >= 0 ? '#4ade80' : '#f87171' }}>
-                                    {hoveredProfitValue >= 0 ? '' : '-'}₿{Math.abs(hoveredProfitValue).toFixed(2)}
+                                    {hoveredProfitValue >= 0 ? '' : '-'}<Coins value={Math.abs(hoveredProfitValue)} />
                                 </p>
                             )}
                             <div className="canvas-wrapper">
@@ -810,7 +821,7 @@ function CrashGame() {
                 title={
                     <Space className="history-window-header-title">
                         <div className="icon-wrapper"><ThunderboltOutlined /></div>
-                        <span>Play History & Dashboard</span>
+                        <span>{t('crash.historyDashboard')}</span>
                     </Space>
                 }
                 centered
@@ -825,13 +836,13 @@ function CrashGame() {
                 <div className="history-window-content">
                     {/* Achievements */}
                     <div className="dashboard-section">
-                        <div className="section-title">Milestones</div>
+                        <div className="section-title">{t('crash.milestones')}</div>
                         <div className="achievements-row">
                             {(() => {
                                 const achievements = [
-                                    { id: 'first-drop', title: 'First Drop', unlocked: gameRecords.length > 0, icon: <StarOutlined /> },
-                                    { id: 'big-win', title: 'Big Win 20×', unlocked: gameRecords.some(w => w.multiplier >= 20 && w.profit >= 0), icon: <TrophyOutlined /> },
-                                    { id: 'hot-streak', title: 'Hot streak 5+', unlocked: maxStreak >= 5, icon: <FireOutlined /> },
+                                    { id: 'first-drop', title: t('crash.firstDrop'), unlocked: gameRecords.length > 0, icon: <StarOutlined /> },
+                                    { id: 'big-win', title: t('crash.bigWin'), unlocked: gameRecords.some(w => w.multiplier >= 20 && w.profit >= 0), icon: <TrophyOutlined /> },
+                                    { id: 'hot-streak', title: t('crash.hotStreak'), unlocked: maxStreak >= 5, icon: <FireOutlined /> },
                                 ];
                                 return achievements.map(a => (
                                     <div key={a.id} className={`achievement-badge ${a.unlocked ? 'unlocked' : 'locked'}`}>
@@ -845,20 +856,20 @@ function CrashGame() {
 
                     {/* Streak timeline (last 20 results) */}
                     <div className="dashboard-section">
-                        <div className="section-title">Streak Timeline (Last 20)</div>
+                        <div className="section-title">{t('crash.streakTimeline')}</div>
                         <div className="streak-timeline glass-panel">
                             {gameRecords.slice(-20).map((r, idx) => (
-                                <div key={r.id || idx} className={`timeline-dot ${r.profit >= 0 ? 'win' : 'loss'}`} title={`Crash: ${r.multiplier.toFixed(2)}x ${r.cashedOutAt ? `• Cashed out: ${r.cashedOutAt.toFixed(2)}x` : ''}`} />
+                                <div key={r.id || idx} className={`timeline-dot ${r.profit >= 0 ? 'win' : 'loss'}`} title={r.cashedOutAt ? t('crash.streakTitleCashed', { crash: formatMultiplier(r.multiplier), cashed: formatMultiplier(r.cashedOutAt) }) : t('crash.streakTitle', { crash: formatMultiplier(r.multiplier) })} />
                             ))}
                         </div>
                     </div>
 
                     {/* History list */}
                     <div className="dashboard-section">
-                        <div className="section-title">Recent Transactions</div>
+                        <div className="section-title">{t('crash.recentRounds')}</div>
                         <div className="history-list">
                             {gameRecords.length === 0 ? (
-                                <div className="empty-state">No transaction history yet</div>
+                                <div className="empty-state">{t('crash.noRounds')}</div>
                             ) : (
                                 gameRecords.slice().reverse().map((r) => {
                                     const isWin = r.profit >= 0;
@@ -870,13 +881,13 @@ function CrashGame() {
                                                 </div>
                                             </div>
                                             <div className="history-card-info">
-                                                <div className="history-card-name">{isWin ? 'Win' : 'Loss'}</div>
+                                                <div className="history-card-name">{isWin ? t('crash.win') : t('crash.loss')}</div>
                                                 <div className="history-card-multiplier" style={{ color: isWin ? 'var(--success)' : '#ff4d4f' }}>
-                                                    {r.cashedOutAt ? r.cashedOutAt.toFixed(2) : r.multiplier.toFixed(2)}×
+                                                    {formatMultiplier(r.cashedOutAt ? r.cashedOutAt : r.multiplier)}
                                                 </div>
                                             </div>
                                             <div className={`history-card-profit ${isWin ? 'profit-up' : 'profit-down'}`}>
-                                                {isWin ? '+' : '-'}₿{Math.abs(r.profit).toFixed(2)}
+                                                {isWin ? '+' : '-'}<Coins value={Math.abs(r.profit)} />
                                             </div>
                                         </div>
                                     );
@@ -892,7 +903,7 @@ function CrashGame() {
                 title={
                     <Space>
                         <SafetyCertificateOutlined style={{ color: 'var(--primary)' }} />
-                        <span>Provably Fair</span>
+                        <span>{t('crash.fairTitle')}</span>
                     </Space>
                 }
                 open={fairnessModalOpen}
@@ -907,17 +918,16 @@ function CrashGame() {
                 <div className="fairness-header">
                     <Title level={5}>
                         <CheckCircleOutlined style={{ marginRight: 8 }} />
-                        This game is provably fair
+                        {t('crash.fairHeadline')}
                     </Title>
                     <Paragraph>
-                        Uses HMAC-SHA256 to generate results from server seed + client seed + nonce.
-                        Rotate the seed to reveal and verify past results.
+                        {t('crash.fairText')}
                     </Paragraph>
                 </div>
 
                 {/* Active Seed Data */}
                 <div className="fairness-item">
-                    <span className="fairness-label">Server Seed (Hash)</span>
+                    <span className="fairness-label">{t('games.serverSeedHash')}</span>
                     <div className="fairness-value">
                         <Text copyable={{ text: fairnessData.serverSeedHash }} style={{ fontSize: 11, wordBreak: 'break-all' }}>
                             {fairnessData.serverSeedHash?.slice(0, 24)}...
@@ -926,7 +936,7 @@ function CrashGame() {
                 </div>
 
                 <div className="fairness-item">
-                    <span className="fairness-label">Client Seed</span>
+                    <span className="fairness-label">{t('games.clientSeed')}</span>
                     <div className="fairness-value" style={{ display: 'flex', gap: 6 }}>
                         <Input
                             size="small"
@@ -934,12 +944,12 @@ function CrashGame() {
                             onChange={e => setClientSeedInput(e.target.value)}
                             style={{ background: '#2f4553', border: 'none', color: '#fff', flex: 1, fontSize: 12 }}
                         />
-                        <Button size="small" onClick={handleChangeClientSeed} icon={<CheckCircleOutlined />} />
+                        <Button size="small" onClick={handleChangeClientSeed} icon={<CheckCircleOutlined />} aria-label={t('crash.applySeed')} />
                     </div>
                 </div>
 
                 <div className="fairness-item">
-                    <span className="fairness-label">Nonce</span>
+                    <span className="fairness-label">{t('games.nonce')}</span>
                     <div className="fairness-value">
                         <Text style={{
                             background: 'rgba(47, 69, 83, 0.5)',
@@ -953,13 +963,13 @@ function CrashGame() {
                 </div>
 
                 <div className="fairness-item">
-                    <span className="fairness-label">Last Result</span>
+                    <span className="fairness-label">{t('crash.lastResult')}</span>
                     <div className="fairness-value">
                         <Tag
                             color={(history[0] || 1) < 2 ? 'error' : (history[0] || 1) < 10 ? 'success' : 'gold'}
                             style={{ margin: 0, fontSize: 14, fontWeight: 600 }}
                         >
-                            {(history[0] || 1).toFixed(2)}×
+                            {formatMultiplier(history[0] || 1)}
                         </Tag>
                     </div>
                 </div>
@@ -970,10 +980,10 @@ function CrashGame() {
                 {revealedSeed && (
                     <div style={{ marginBottom: 12 }}>
                         <Text type="secondary" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                            Previous Server Seed (Revealed)
+                            {t('crash.previousSeed')}
                         </Text>
                         <div className="fairness-item" style={{ marginTop: 6 }}>
-                            <span className="fairness-label">Seed</span>
+                            <span className="fairness-label">{t('crash.seed')}</span>
                             <div className="fairness-value">
                                 <Text copyable={{ text: revealedSeed.serverSeed }} style={{ fontSize: 10, wordBreak: 'break-all' }}>
                                     {revealedSeed.serverSeed.slice(0, 20)}...
@@ -981,7 +991,7 @@ function CrashGame() {
                             </div>
                         </div>
                         <div className="fairness-item">
-                            <span className="fairness-label">Hash</span>
+                            <span className="fairness-label">{t('crash.hash')}</span>
                             <div className="fairness-value">
                                 <Text style={{ fontSize: 10, wordBreak: 'break-all', color: 'var(--primary)' }}>
                                     {revealedSeed.serverSeedHash?.slice(0, 20)}...
@@ -999,7 +1009,7 @@ function CrashGame() {
                     icon={<SyncOutlined />}
                     onClick={handleRotateSeed}
                 >
-                    Rotate Seed (Reveal Current)
+                    {t('crash.rotateReveal')}
                 </Button>
             </Modal>
         </div>

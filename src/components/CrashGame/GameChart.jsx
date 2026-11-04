@@ -1,6 +1,8 @@
 import { useRef, useEffect, useMemo, useCallback } from 'react'
 import { Tag, Typography, Badge } from 'antd'
 import { WifiOutlined } from '@ant-design/icons'
+import { t } from '../../i18n'
+import { formatMultiplier, formatNumber } from '../../i18n/format'
 
 const { Text, Title } = Typography
 
@@ -259,8 +261,8 @@ function GameChart({ phase, multiplier, elapsedTime, countdown }) {
     }, [phase, multiplier, elapsedTime, maxTime, maxMultiplier])
 
     const getStatusText = () => {
-        if (phase === 'waiting') return `Starting in ${countdown.toFixed(1)}s`
-        if (phase === 'crashed') return `Crashed @${multiplier.toFixed(2)}×`
+        if (phase === 'waiting') return t('crash.startingIn', { time: formatNumber(countdown, 1) })
+        if (phase === 'crashed') return t('crash.crashedAt', { multiplier: formatMultiplier(multiplier) })
         return null
     }
 
@@ -280,19 +282,19 @@ function GameChart({ phase, multiplier, elapsedTime, countdown }) {
             <img
                 ref={rocketRef}
                 src="/images/spaceship.png"
-                alt="Rocket"
+                alt={t('crash.rocketAlt')}
                 style={{ position: 'absolute', width: '105px', height: 'auto', display: 'none', pointerEvents: 'none', zIndex: 10, filter: 'drop-shadow(0 0 10px rgba(247, 147, 26, 0.8))', willChange: 'transform, left, top' }}
             />
             <img
                 ref={exhaustRef}
                 src="/images/exhaust/exhaust02_preview.gif"
-                alt="Exhaust"
+                alt={t('crash.exhaustAlt')}
                 style={{ position: 'absolute', width: '150px', height: 'auto', display: 'none', pointerEvents: 'none', zIndex: 9, mixBlendMode: 'screen', filter: 'hue-rotate(340deg) saturate(2)', imageRendering: 'pixelated', willChange: 'transform, left, top' }}
             />
             <img
                 ref={explosionRef}
                 src="/images/explosions/normal_explosion.gif"
-                alt="Explosion"
+                alt={t('crash.explosionAlt')}
                 style={{ position: 'absolute', width: '250px', height: 'auto', display: 'none', pointerEvents: 'none', zIndex: 11, transform: 'translate(-50%, -50%)', mixBlendMode: 'screen', imageRendering: 'pixelated' }}
             />
 
@@ -313,7 +315,7 @@ function GameChart({ phase, multiplier, elapsedTime, countdown }) {
                     </Text>
                 ))}
                 <Text type="secondary" className="total-time-antd">
-                    Total {Math.floor(elapsedTime)}s
+                    {t('crash.totalTime', { n: Math.floor(elapsedTime) })}
                 </Text>
             </div>
 
@@ -362,7 +364,7 @@ function GameChart({ phase, multiplier, elapsedTime, countdown }) {
             <div className="network-indicator">
                 <Badge status="success" />
                 <WifiOutlined style={{ color: 'var(--success)', marginRight: 4 }} />
-                <Text type="secondary" style={{ fontSize: 11 }}>Connected</Text>
+                <Text type="secondary" style={{ fontSize: 11 }}>{t('crash.connected')}</Text>
             </div>
         </div>
     )

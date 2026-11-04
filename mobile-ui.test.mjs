@@ -74,7 +74,7 @@ test('Crash prioritizes chart, cashout, and mobile player tabs', async () => {
         './src/components/CrashGame/GameHistory.jsx',
         './src/components/CrashGame/CrashGame.css',
     ])
-    assert.match(game, /<MobileBetSheet[^>]*title="Crash bet controls"/)
+    assert.match(game, /<MobileBetSheet[^>]*title=\{t\('crash\.betControls'\)\}/)
     assert.match(game, /mobileDataTab/)
     assert.match(game, /crash-mobile-tabs/)
     assert.match(game, /showPlayerBets && mobileDataTab === 'bets'/)
