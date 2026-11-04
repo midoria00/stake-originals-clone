@@ -98,6 +98,10 @@ const BALL_TYPES = {
     }
 };
 
+// Special balls (2-20x cost and payout) are hidden: the wallet only charged 1x and paid the base
+// multiplier, so their records never matched the balance. With cost == bonus they equal a bigger stake.
+const AVAILABLE_BALL_TYPES = { normal: BALL_TYPES.normal };
+
 function PlinkoGame() {
     // Shared Wallet
     const { balance, placeBet, addWinnings, showToast } = useWallet()
@@ -480,7 +484,7 @@ function PlinkoGame() {
                                 isStatsOpen={statsDrawerOpen}
                                 selectedBallType={selectedBallType}
                                 setSelectedBallType={setSelectedBallType}
-                                ballTypes={BALL_TYPES}
+                                ballTypes={AVAILABLE_BALL_TYPES}
                             />
                         </div>
                     </MobileBetSheet>
@@ -560,16 +564,19 @@ function PlinkoGame() {
                                         onClick={() => setStatsDrawerOpen(true)}
                                     />
                                 </Tooltip>
-                                <Tooltip title={isDebugMode ? t('plinko.debugOff') : t('plinko.debugOn')}>
-                                    <Button
-                                        type="text"
-                                        aria-label={isDebugMode ? t('plinko.debugOff') : t('plinko.debugOn')}
-                                        icon={<BugOutlined />}
-                                        className={`control-btn ${isDebugMode ? 'active-debug' : ''}`}
-                                        style={{ color: isDebugMode ? 'var(--primary)' : undefined }}
-                                        onClick={() => setIsDebugMode(!isDebugMode)}
-                                    />
-                                </Tooltip>
+                                {/* Debug shows the next result before it is played: development builds only. */}
+                                {import.meta.env.DEV && (
+                                    <Tooltip title={isDebugMode ? t('plinko.debugOff') : t('plinko.debugOn')}>
+                                        <Button
+                                            type="text"
+                                            aria-label={isDebugMode ? t('plinko.debugOff') : t('plinko.debugOn')}
+                                            icon={<BugOutlined />}
+                                            className={`control-btn ${isDebugMode ? 'active-debug' : ''}`}
+                                            style={{ color: isDebugMode ? 'var(--primary)' : undefined }}
+                                            onClick={() => setIsDebugMode(!isDebugMode)}
+                                        />
+                                    </Tooltip>
+                                )}
                             </Space>
 
                             <Logo size={22} />

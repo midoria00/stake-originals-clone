@@ -919,9 +919,12 @@ function DinoGame() {
                                 <Tooltip title={soundEnabled ? t('dino.mute') : t('dino.unmute')}>
                                     <Button type="text" icon={<SoundOutlined />} aria-label={soundEnabled ? t('dino.mute') : t('dino.unmute')} className={`control-btn ${!soundEnabled ? 'muted' : ''}`} onClick={() => setSoundEnabled(!soundEnabled)} />
                                 </Tooltip>
-                                <Tooltip title={t('dino.debug.tooltip')}>
-                                    <Button type="text" icon={<BugOutlined style={{ color: isDebugMode ? 'var(--primary)' : undefined }} />} aria-label={t('dino.debug.tooltip')} className={`control-btn ${isDebugMode ? 'active' : ''}`} onClick={() => setIsDebugMode(!isDebugMode)} />
-                                </Tooltip>
+                                {/* Debug shows the next result before it is played: development builds only. */}
+                                {import.meta.env.DEV && (
+                                    <Tooltip title={t('dino.debug.tooltip')}>
+                                        <Button type="text" icon={<BugOutlined style={{ color: isDebugMode ? 'var(--primary)' : undefined }} />} aria-label={t('dino.debug.tooltip')} className={`control-btn ${isDebugMode ? 'active' : ''}`} onClick={() => setIsDebugMode(!isDebugMode)} />
+                                    </Tooltip>
+                                )}
                             </Space>
                             <span className="logo" style={{ color: 'var(--text-primary)' }}><Logo size={24} /></span>
                             <Button type="text" icon={<SafetyCertificateOutlined />} className="fairness-btn" onClick={() => setFairnessModalOpen(true)}>

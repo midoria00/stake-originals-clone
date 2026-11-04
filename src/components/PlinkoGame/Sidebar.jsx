@@ -238,41 +238,43 @@ function Sidebar({
             </div>
 
             {/* --- Plinko extra: Ball Selector, Last Win, Streak --- */}
-            <div className="ball-selector-card sidebar-card mobile-sheet-secondary">
-                <div className="ball-selector-header">
-                    <StarOutlined />
-                    <span>{t('plinko.ballType')}</span>
-                </div>
-                <div className="ball-types-grid">
-                    {Object.values(ballTypes || {}).map(ball => (
-                        <Tooltip
-                            key={ball.id}
-                            title={
-                                <div>
-                                    <div style={{ fontWeight: 600 }}>{t(`plinko.balls.${ball.id}`)}</div>
-                                    <div>{ball.multiplierBonus > 1 ? t('plinko.ballBonus', { factor: ball.multiplierBonus }) : t('plinko.ballBase')}</div>
-                                    <div style={{ color: 'var(--text-secondary)' }}>{t('plinko.ballCost', { cost: ball.cost })}</div>
-                                </div>
-                            }
-                        >
-                            <div
-                                className={`ball-type-option ${selectedBallType === ball.id ? 'selected' : ''}`}
-                                onClick={() => setSelectedBallType?.(ball.id)}
-                                style={{ '--ball-color': ball.color }}
+            {Object.keys(ballTypes || {}).length > 1 && (
+                <div className="ball-selector-card sidebar-card mobile-sheet-secondary">
+                    <div className="ball-selector-header">
+                        <StarOutlined />
+                        <span>{t('plinko.ballType')}</span>
+                    </div>
+                    <div className="ball-types-grid">
+                        {Object.values(ballTypes || {}).map(ball => (
+                            <Tooltip
+                                key={ball.id}
+                                title={
+                                    <div>
+                                        <div style={{ fontWeight: 600 }}>{t(`plinko.balls.${ball.id}`)}</div>
+                                        <div>{ball.multiplierBonus > 1 ? t('plinko.ballBonus', { factor: ball.multiplierBonus }) : t('plinko.ballBase')}</div>
+                                        <div style={{ color: 'var(--text-secondary)' }}>{t('plinko.ballCost', { cost: ball.cost })}</div>
+                                    </div>
+                                }
                             >
                                 <div
-                                    className="ball-color-circle"
-                                    style={{ backgroundImage: `url(${ball.image})`, backgroundSize: 'cover', backgroundColor: 'transparent' }}
-                                ></div>
-                                <div className="ball-type-content">
-                                    <div className="ball-type-name">{t(`plinko.balls.${ball.id}`)}</div>
-                                    <div className="ball-type-cost">{ball.cost}×</div>
+                                    className={`ball-type-option ${selectedBallType === ball.id ? 'selected' : ''}`}
+                                    onClick={() => setSelectedBallType?.(ball.id)}
+                                    style={{ '--ball-color': ball.color }}
+                                >
+                                    <div
+                                        className="ball-color-circle"
+                                        style={{ backgroundImage: `url(${ball.image})`, backgroundSize: 'cover', backgroundColor: 'transparent' }}
+                                    ></div>
+                                    <div className="ball-type-content">
+                                        <div className="ball-type-name">{t(`plinko.balls.${ball.id}`)}</div>
+                                        <div className="ball-type-cost">{ball.cost}×</div>
+                                    </div>
                                 </div>
-                            </div>
-                        </Tooltip>
-                    ))}
+                            </Tooltip>
+                        ))}
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 }

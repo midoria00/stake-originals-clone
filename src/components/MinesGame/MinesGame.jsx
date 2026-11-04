@@ -747,16 +747,19 @@ function MinesGame() {
                             <Tooltip title={soundEnabled ? t('mines.controls.mute') : t('mines.controls.unmute')}>
                                 <Button type="text" icon={<SoundOutlined />} className={`control-btn ${!soundEnabled ? 'muted' : ''}`} aria-label={soundEnabled ? t('mines.controls.mute') : t('mines.controls.unmute')} onClick={() => setSoundEnabled(!soundEnabled)} />
                             </Tooltip>
-                            <Tooltip title={isDebugMode ? t('mines.controls.disableDebug') : t('mines.controls.enableDebug')}>
-                                <Button
-                                    type="text"
-                                    icon={<BugOutlined />}
-                                    className={`control-btn ${isDebugMode ? 'active-debug' : ''}`}
-                                    aria-label={isDebugMode ? t('mines.controls.disableDebug') : t('mines.controls.enableDebug')}
-                                    style={{ color: isDebugMode ? 'var(--primary)' : undefined }}
-                                    onClick={() => setIsDebugMode(!isDebugMode)}
-                                />
-                            </Tooltip>
+                            {/* Debug shows the next result before it is played: development builds only. */}
+                            {import.meta.env.DEV && (
+                                <Tooltip title={isDebugMode ? t('mines.controls.disableDebug') : t('mines.controls.enableDebug')}>
+                                    <Button
+                                        type="text"
+                                        icon={<BugOutlined />}
+                                        className={`control-btn ${isDebugMode ? 'active-debug' : ''}`}
+                                        aria-label={isDebugMode ? t('mines.controls.disableDebug') : t('mines.controls.enableDebug')}
+                                        style={{ color: isDebugMode ? 'var(--primary)' : undefined }}
+                                        onClick={() => setIsDebugMode(!isDebugMode)}
+                                    />
+                                </Tooltip>
+                            )}
                         </Space>
                         <span className="logo"><Logo size={22} /></span>
                         <Button type="text" icon={<SafetyCertificateOutlined />} className="fairness-btn" onClick={() => setFairnessModalOpen(true)}>
