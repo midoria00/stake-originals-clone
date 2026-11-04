@@ -106,7 +106,7 @@ test('Plinko mobile presentation preserves board ratio and critical controls', a
         './src/components/PlinkoGame/Sidebar.css',
         './src/components/PlinkoGame/Plinko.css',
     ])
-    assert.match(game, /<MobileBetSheet[^>]*title="Plinko bet controls"/)
+    assert.match(game, /<MobileBetSheet[^>]*title=\{t\('plinko\.betControls'\)\}/)
     assert.match(game, /plinko-bet-sheet/)
     assert.match(sidebar, /mobile-sheet-secondary/)
     assert.match(gameCss, /\.recent-plays-list\s*\{[^}]*overflow-x:\s*auto/s)

@@ -230,12 +230,6 @@
     color: #ff4d4f !important;
 }
 
-.plinko-page .stake-logo-container {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
 /* streak badge removed - handled in statistics/history */
 
 .plinko-page .plinko-controls .fairness-btn {

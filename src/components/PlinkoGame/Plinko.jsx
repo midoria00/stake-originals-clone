@@ -2,6 +2,7 @@
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import PlinkoEngine from './PlinkoEngine';
 import { getBinColors, BIN_PAYOUTS } from './constants';
+import { t } from '../../i18n';
 import './Plinko.css';
 
 let outcomesPromise;
@@ -110,6 +111,7 @@ function Plinko({
     const [plinkoEngine, setPlinkoEngine] = useState(null);
     const [binsWidthPercentage, setBinsWidthPercentage] = useState(0.85);
     const [isLoading, setIsLoading] = useState(true);
+    const [loadFailed, setLoadFailed] = useState(false);
 
     const { WIDTH, HEIGHT } = PlinkoEngine;
 
@@ -140,6 +142,10 @@ function Plinko({
             setIsLoading(false);
 
             if (engineRef) engineRef.current = engine;
+        }).catch(() => {
+            if (cancelled) return;
+            setLoadFailed(true);
+            setIsLoading(false);
         });
 
         return () => {
@@ -177,9 +183,12 @@ function Plinko({
                 <div className="plinko-board-wrapper">
                     <div className="plinko-canvas-container" style={{ aspectRatio: `${WIDTH} / ${HEIGHT}` }}>
                         {isLoading && (
-                            <div className="plinko-loading">
+                            <div className="plinko-loading" role="status" aria-label={t('plinko.loading')}>
                                 <div className="loading-spinner" />
                             </div>
+                        )}
+                        {loadFailed && (
+                            <div className="plinko-loading" role="alert">{t('plinko.loadError')}</div>
                         )}
                         <canvas
                             ref={canvasRef}

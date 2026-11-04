@@ -1,9 +1,11 @@
 // Sidebar Component - Direct port from Sidebar.svelte
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { ROW_COUNT_OPTIONS, AUTO_BET_INTERVAL_MS, getBinColors } from './constants';
+import { ROW_COUNT_OPTIONS, AUTO_BET_INTERVAL_MS } from './constants';
 import './Sidebar.css';
-import { Tooltip, Tag, InputNumber, Button, Typography } from 'antd';
-import { TrophyOutlined, StarOutlined, FireOutlined } from '@ant-design/icons';
+import { Tooltip, InputNumber, Button, Typography } from 'antd';
+import { StarOutlined } from '@ant-design/icons';
+import { CoinIcon, Coins } from '../../brand/Brand';
+import { t } from '../../i18n';
 
 const { Text } = Typography;
 
@@ -17,19 +19,12 @@ function Sidebar({
     setRiskLevel,
     hasOutstandingBalls,
     onDropBall,
-    onSettingsClick,
     onStatsClick,
-    isSettingsOpen,
     isStatsOpen,
     // Plinko-specific props
     selectedBallType,
     setSelectedBallType,
     ballTypes,
-    currentBall,
-    lastWin,
-    winRecords,
-    currentStreak,
-    maxStreak,
 }) {
     const [betMode, setBetMode] = useState('manual'); // 'manual' | 'auto'
     const [autoBetInput, setAutoBetInput] = useState(0);
@@ -39,10 +34,10 @@ function Sidebar({
     const autoBetSessionRef = useRef(0);
 
     // Validation
-    const isBetAmountNegative = betAmount < 0;
+    const isBetAmountInvalid = !(betAmount > 0);
     const isBetExceedBalance = betAmount > balance;
     const isAutoBetInputNegative = autoBetInput < 0;
-    const isDropBallDisabled = isBetAmountNegative || isBetExceedBalance || isAutoBetInputNegative;
+    const isDropBallDisabled = isBetAmountInvalid || isBetExceedBalance || isAutoBetInputNegative;
 
     // Auto bet drop ball
     const autoBetDropBall = useCallback(async () => {
@@ -88,21 +83,12 @@ function Sidebar({
         }
     };
 
-    const handleBetAmountChange = (e) => {
-        const value = parseFloat(e.target.value);
-        setBetAmount(isNaN(value) ? 0 : value);
-    };
-
     const handleAutoBetInputChange = (e) => {
         const value = parseInt(e.target.value);
         setAutoBetInput(isNaN(value) ? 0 : value);
     };
 
-    const riskLevels = [
-        { value: 'low', label: 'Low' },
-        { value: 'medium', label: 'Medium' },
-        { value: 'high', label: 'High' },
-    ];
+    const riskLevels = ['low', 'medium', 'high'];
 
     return (
         <div className="sidebar">
@@ -113,22 +99,22 @@ function Sidebar({
                     onClick={() => setBetMode('manual')}
                     disabled={isAutoBetting}
                 >
-                    Manual
+                    {t('games.manual')}
                 </button>
                 <button
                     className={`bet-mode-tab ${betMode === 'auto' ? 'active' : ''}`}
                     onClick={() => setBetMode('auto')}
                     disabled={isAutoBetting}
                 >
-                    Auto
+                    {t('games.auto')}
                 </button>
             </div>
 
             {/* Bet Amount */}
             <div className="form-group">
                 <div className="form-header">
-                    <label htmlFor="betAmount" className="form-label" style={{ margin: 0 }}>Bet Amount</label>
-                    <Text type="secondary" style={{ margin: 0 }}>₿{(betAmount ?? 0).toFixed(2)}</Text>
+                    <label htmlFor="betAmount" className="form-label" style={{ margin: 0 }}>{t('games.betAmount')}</label>
+                    <Text type="secondary" style={{ margin: 0 }}><Coins value={betAmount ?? 0} size={14} /></Text>
                 </div>
                 <div className="input-row">
                     <InputNumber
@@ -140,36 +126,35 @@ function Sidebar({
                         disabled={isAutoBetting}
                         style={{ flex: 1 }}
                         controls={false}
-                        formatter={(v) => `${v}`}
-                        parser={(v) => v.replace(/\$\s?|(,*)/g, '')}
-                        addonBefore={<div className="btc-icon">₿</div>}
+                        decimalSeparator=","
+                        addonBefore={<CoinIcon size={20} />}
                     />
                     <Button.Group>
                         <Button
                             onClick={() => setBetAmount(prev => parseFloat((Number(prev || 0) / 2).toFixed(2)))}
                             disabled={isAutoBetting}
                         >
-                            ½
+                            {t('games.half')}
                         </Button>
                         <Button
                             onClick={() => setBetAmount(prev => parseFloat((Number(prev || 0) * 2).toFixed(2)))}
                             disabled={isAutoBetting}
                         >
-                            2×
+                            {t('games.double')}
                         </Button>
                     </Button.Group>
                 </div>
-                {isBetAmountNegative && (
-                    <p className="error-text">This must be greater than or equal to 0.</p>
+                {isBetAmountInvalid && (
+                    <p className="error-text">{t('plinko.errors.betPositive')}</p>
                 )}
                 {isBetExceedBalance && (
-                    <p className="error-text">Can't bet more than your balance!</p>
+                    <p className="error-text">{t('plinko.errors.betBalance')}</p>
                 )}
             </div>
 
             {/* Risk Level */}
             <div className="form-group mobile-sheet-secondary">
-                <label htmlFor="riskLevel" className="form-label">Risk</label>
+                <label htmlFor="riskLevel" className="form-label">{t('plinko.risk')}</label>
                 <select
                     id="riskLevel"
                     value={riskLevel}
@@ -177,15 +162,15 @@ function Sidebar({
                     disabled={hasOutstandingBalls || isAutoBetting}
                     className="form-select"
                 >
-                    {riskLevels.map(({ value, label }) => (
-                        <option key={value} value={value}>{label}</option>
+                    {riskLevels.map((value) => (
+                        <option key={value} value={value}>{t(`plinko.riskLevels.${value}`)}</option>
                     ))}
                 </select>
             </div>
 
             {/* Row Count */}
             <div className="form-group mobile-sheet-secondary">
-                <label htmlFor="rowCount" className="form-label">Rows</label>
+                <label htmlFor="rowCount" className="form-label">{t('plinko.rows')}</label>
                 <select
                     id="rowCount"
                     value={rowCount}
@@ -203,8 +188,8 @@ function Sidebar({
             {betMode === 'auto' && (
                 <div className="form-group mobile-sheet-secondary">
                     <div className="form-label-row">
-                        <label htmlFor="autoBetInput" className="form-label">Number of Bets</label>
-                        <span className="help-icon" title="Enter '0' for unlimited bets.">?</span>
+                        <label htmlFor="autoBetInput" className="form-label">{t('games.numberOfBets')}</label>
+                        <span className="help-icon" title={t('plinko.unlimitedHint')} aria-label={t('plinko.unlimitedHint')}>?</span>
                     </div>
                     <div className="auto-bet-input">
                         <input
@@ -222,7 +207,7 @@ function Sidebar({
                         )}
                     </div>
                     {isAutoBetInputNegative && (
-                        <p className="error-text">This must be greater than or equal to 0.</p>
+                        <p className="error-text">{t('plinko.errors.autoNegative')}</p>
                     )}
                 </div>
             )}
@@ -233,25 +218,17 @@ function Sidebar({
                 onClick={handleBetClick}
                 disabled={isDropBallDisabled}
             >
-                {betMode === 'manual' ? 'Drop Ball' : isAutoBetting ? 'Stop Autobet' : 'Start Autobet'}
+                {betMode === 'manual' ? t('plinko.drop') : isAutoBetting ? t('games.stopAutoBet') : t('games.startAutoBet')}
             </button>
 
             {/* Footer */}
             <div className="sidebar-footer mobile-sheet-secondary">
                 <div className="footer-buttons">
                     <button
-                        className={`footer-btn ${isSettingsOpen ? 'active' : ''}`}
-                        onClick={onSettingsClick}
-                        title="Game Settings"
-                    >
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97 0-.33-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1 0 .33.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66z" />
-                        </svg>
-                    </button>
-                    <button
                         className={`footer-btn ${isStatsOpen ? 'active' : ''}`}
                         onClick={onStatsClick}
-                        title="Live Stats"
+                        title={t('plinko.liveStats')}
+                        aria-label={t('plinko.liveStats')}
                     >
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M16 11.78l4.24-7.33 1.73 1-5.23 9.05-6.51-3.75L5.46 19H22v2H2V3h2v14.54L9.5 8z" />
@@ -264,7 +241,7 @@ function Sidebar({
             <div className="ball-selector-card sidebar-card mobile-sheet-secondary">
                 <div className="ball-selector-header">
                     <StarOutlined />
-                    <span>Ball Type</span>
+                    <span>{t('plinko.ballType')}</span>
                 </div>
                 <div className="ball-types-grid">
                     {Object.values(ballTypes || {}).map(ball => (
@@ -272,9 +249,9 @@ function Sidebar({
                             key={ball.id}
                             title={
                                 <div>
-                                    <div style={{ fontWeight: 600 }}>{ball.name}</div>
-                                    <div>{ball.description}</div>
-                                    <div style={{ color: 'var(--text-secondary)' }}>Cost: {ball.cost}× bet</div>
+                                    <div style={{ fontWeight: 600 }}>{t(`plinko.balls.${ball.id}`)}</div>
+                                    <div>{ball.multiplierBonus > 1 ? t('plinko.ballBonus', { factor: ball.multiplierBonus }) : t('plinko.ballBase')}</div>
+                                    <div style={{ color: 'var(--text-secondary)' }}>{t('plinko.ballCost', { cost: ball.cost })}</div>
                                 </div>
                             }
                         >
@@ -288,7 +265,7 @@ function Sidebar({
                                     style={{ backgroundImage: `url(${ball.image})`, backgroundSize: 'cover', backgroundColor: 'transparent' }}
                                 ></div>
                                 <div className="ball-type-content">
-                                    <div className="ball-type-name">{ball.name}</div>
+                                    <div className="ball-type-name">{t(`plinko.balls.${ball.id}`)}</div>
                                     <div className="ball-type-cost">{ball.cost}×</div>
                                 </div>
                             </div>
@@ -296,10 +273,6 @@ function Sidebar({
                     ))}
                 </div>
             </div>
-
-            {/* Last Win card removed as requested */}
-
-            {/* Streak UI moved to History & Statistics */}
         </div>
     );
 }
