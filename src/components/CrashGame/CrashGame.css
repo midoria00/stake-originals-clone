@@ -1099,6 +1099,11 @@
         overflow: visible;
     }
 
+    /* Only absolute children, so flex: 1 alone lets the player tabs squeeze the chart to 0px. */
+    .crash-game .chart-container-antd {
+        min-height: 260px;
+    }
+
     .crash-bet-sheet .crash-sidebar {
         width: 100%;
         min-width: 0;
