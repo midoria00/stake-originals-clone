@@ -699,7 +699,7 @@ function DinoGame() {
                             </div>
                             <div className="difficulty-info">
                                 <Text type="secondary" style={{ fontSize: 11 }}>
-                                    {t('dino.rtp', { rtp: '99,00%' })}
+                                    {t('dino.rtp', { rtp: '99%' })}
                                 </Text>
                             </div>
                         </div>

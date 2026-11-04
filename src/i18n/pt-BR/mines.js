@@ -66,7 +66,7 @@ export default {
     },
     fairnessModal: {
         title: 'Jogo justo',
-        headline: 'Este jogo é comprovadamente justo',
+        headline: 'Cada rodada pode ser conferida',
         description: 'Usa HMAC-SHA256 para gerar as posições exatas das minas a partir de uma semente do servidor e da sua semente do cliente.',
         applySeed: 'Aplicar semente do cliente',
         minesCount: 'Quantidade de minas',
