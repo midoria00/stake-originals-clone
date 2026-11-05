@@ -37,6 +37,31 @@ Situação em 04/11/2026, branch `feature/123bet-contas`.
   - Limpeza: os usuários de teste são apagados pelo fluxo LGPD.
 - **Limite atual do e-mail:** o Supabase rejeita domínios reservados (ex.: example.com). Sem SMTP próprio, o e-mail padrão só entrega para membros do projeto, cerca de 2 por hora.
 
+## Prévias protegidas (05/11/2026)
+
+- **Vercel Authentication, Standard Protection** (`prod_deployment_urls_and_all_previews`) ligada só no projeto `stake-originals-clone`.
+  - Prévias e URLs geradas de produção exigem login na Vercel com acesso ao time (302 para `vercel.com/sso-api`).
+  - O domínio de produção `stake-originals-clone-psi.vercel.app` continua público (200).
+- **Links de e-mail:** o redirecionamento da proteção preserva caminho e query (`/conta/confirmar?token_hash=…&type=email`). Quem abre o link volta para a confirmação depois de entrar na Vercel, e a prévia só é acessível a membros do time, os mesmos que podem se cadastrar nela.
+  - Os modelos próprios usam `token_hash` na query por isso.
+  - O modelo padrão do Supabase usa tokens no fragmento da URL, que se perdem se o login na Vercel for pedido no meio. Mesmo nesse caso a conta já fica confirmada pelo Supabase e basta entrar.
+- **Testes automatizados:** usam um link de compartilhamento temporário (23 h, `get_access_to_vercel_url`) passado em `VERCEL_SHARE_URL`. Não há bypass permanente nem rota liberada.
+
+## Auditoria no banco hospedado (05/11/2026)
+
+- **Tabelas:**
+  - As 17 têm RLS e nenhuma permite escrita por `authenticated`; `anon` não tem nenhum privilégio.
+  - `game_rounds` libera para leitura todas as colunas, menos `secret`.
+  - 5 tabelas sem política ficam fechadas: `app_errors`, `audit_logs`, `coupons`, `payment_events`, `rate_limits`.
+- **Funções SECURITY DEFINER da 123bet** (`admin_users`, `admin_user_detail`, `handle_new_user`): `search_path` vazio, dono `postgres`, nenhuma executável por `anon` ou `authenticated`.
+  - Todas as demais funções têm `search_path` fixo, e todas são executáveis pela service role.
+- **Acesso público:** chamadas diretas a `/rest/v1/rpc/admin_users` ou `claim_free_credits` com a chave pública retornam `PGRST202` (função invisível ao papel).
+- **Avisos `anon/authenticated_security_definer_function_executable` em `rls_auto_enable`:** a função é do Supabase e foi criada com o projeto. Retorna `event_trigger` e só faz `alter table … enable row level security` sobre tabelas criadas no próprio comando DDL (`pg_event_trigger_ddl_commands()`).
+  - Chamada pela API pública, falha com `0A000 cannot display a value of type event_trigger` e sem efeito.
+  - No pior caso ela só ligaria RLS, o que é mais restritivo.
+  - Não foi alterada: é risco nulo na prática e é um objeto gerenciado pelo Supabase.
+- **Erros:** nenhum registrado em `app_errors` e nenhum aviso ou erro nos logs da prévia na última hora consultável (o plano Hobby guarda 1 h).
+
 ## Arquitetura
 
 ```
