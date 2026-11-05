@@ -29,7 +29,7 @@ Situação em 04/11/2026, branch `feature/123bet-contas`.
   - senha com 10+ caracteres, letras e números;
   - troca de senha segura;
   - limites por IP elevados, porque todas as chamadas saem da Vercel.
-- **Modelos de e-mail em pt-BR** (`supabase/templates/`): só podem ser enviados com SMTP próprio. O plano Free com o e-mail padrão recusa a alteração.
+- **Modelos de e-mail em pt-BR** (`supabase/templates/`, gerados por `scripts/accounts/emailTemplates.mjs`): os 8 estão declarados em `supabase/config.toml`. Seguem pendentes no projeto, porque o Supabase só os aceita com SMTP próprio ligado (ver "E-mail transacional (Resend) e DNS").
 - **Vercel** (somente Preview da branch `feature/123bet-contas`): `SUPABASE_URL`, `SUPABASE_ANON_KEY` (publishable), `SUPABASE_SERVICE_ROLE_KEY` (secret, sensível) e os 3 segredos internos.
 - **Teste de ponta a ponta:** `scripts/accounts/remoteCheck.mjs` contra a prévia e o banco real deu 47 de 47.
   - Cobre: confirmação, login, logout, CSRF, carteira, os 6 jogos, histórico e isolamento entre usuários pela API e por acesso direto com o token do usuário.
@@ -46,6 +46,25 @@ Situação em 04/11/2026, branch `feature/123bet-contas`.
   - Os modelos próprios usam `token_hash` na query por isso.
   - O modelo padrão do Supabase usa tokens no fragmento da URL, que se perdem se o login na Vercel for pedido no meio. Mesmo nesse caso a conta já fica confirmada pelo Supabase e basta entrar.
 - **Testes automatizados:** usam um link de compartilhamento temporário (23 h, `get_access_to_vercel_url`) passado em `VERCEL_SHARE_URL`. Não há bypass permanente nem rota liberada.
+
+## E-mail transacional (Resend) e DNS (05/11/2026)
+
+- **Domínio de envio:** `auth.nexusofc.com`, só para os e-mails de autenticação.
+  - O e-mail de `nexusofc.com` continua na Hostinger, sem alteração: MX `mx1/mx2.hostinger.com`, SPF `v=spf1 include:_spf.mail.hostinger.com ~all` e DKIM `hostingermail-a/b/c`.
+  - DMARC do subdomínio já criado na Vercel: `_dmarc.auth` = `v=DMARC1; p=quarantine; adkim=r; aspf=r; pct=100`.
+- **Delegação de DNS dividida (encontrada em 05/11):** no registro `.com` (RDAP da Verisign), `nexusofc.com` aponta para `ns1.dns-parking.com` (Hostinger) e `ns1.vercel-dns.com` (Vercel). São zonas diferentes, e cada resolvedor usa uma delas.
+  - Consultadas diretamente, as duas têm o mesmo MX, SPF, DKIM da Hostinger e `_dmarc`.
+  - Só a da Vercel tem `_dmarc.auth`: a da Hostinger responde que o nome não existe. Um registro do Resend criado só na Vercel ficaria invisível para parte da internet, com verificação instável e DKIM falhando em parte das entregas.
+  - Só a da Hostinger tem `autodiscover` e `autoconfig` (configuração automática de clientes de e-mail) e o IP `2.57.91.91` na raiz.
+  - **Correção recomendada:** copiar `autodiscover` e `autoconfig` para a Vercel e, na Hostinger, deixar só `ns1.vercel-dns.com` e `ns2.vercel-dns.com`. Alternativa: repetir na zona da Hostinger cada registro do Resend.
+- **Registros do Resend:** os valores vêm do painel ou da API do Resend ao cadastrar o domínio (região São Paulo). Em geral são um TXT DKIM em `resend._domainkey.auth` e, para o Return-Path, um MX e um TXT SPF em `send.auth`.
+  - O SPF da raiz não muda: o Return-Path usa o subdomínio `send.auth`.
+  - Rastreamento de cliques e de aberturas desligado, porque reescreveria os links de confirmação.
+- **SMTP do Supabase:** pela integração oficial (Resend › Integrations › Supabase, projeto 123bet), com o remetente `123bet <nao-responda@auth.nexusofc.com>`. A integração grava host, porta, usuário e chave direto no Supabase.
+- **Modelos:** depois do SMTP, `supabase config push` ou `SUPABASE_ACCESS_TOKEN=… node scripts/accounts/pushEmailTemplates.mjs`.
+  - O script altera só assuntos, conteúdos, os 2 avisos de segurança e, se pedido, o nome do remetente. Nunca lê nem grava credenciais SMTP.
+  - `email-templates.test.mjs` confere os 8 arquivos, os links (`token_hash` na query, rota e `type` aceitos pela API), as variáveis do GoTrue e o `config.toml`.
+- **Estado:** pendente. O conector do Resend não estava disponível nesta sessão, e a delegação precisa ser corrigida antes da verificação do domínio.
 
 ## Auditoria no banco hospedado (05/11/2026)
 
@@ -168,8 +187,8 @@ Cada movimentação (`wallet_transactions`) tem:
    - Confirm email: ligado.
    - Site URL: a URL de produção.
    - Redirect URLs: `https://stake-originals-clone-*-patricks-projects-a81f4b64.vercel.app/**` e a URL de produção.
-   - Templates "Confirm signup" e "Reset password": use `{{ .SiteURL }}/conta/confirmar?token_hash={{ .TokenHash }}&type=email` e `{{ .SiteURL }}/conta/redefinir-senha?token_hash={{ .TokenHash }}&type=recovery`. Os templates padrão também funcionam, com tokens no fragmento da URL.
-   - SMTP próprio: sem ele, o Supabase só envia para membros da equipe do projeto, cerca de 2 e-mails por hora.
+   - SMTP próprio: sem ele, o Supabase só envia para membros da equipe do projeto, cerca de 2 e-mails por hora. Ver "E-mail transacional (Resend) e DNS".
+   - Modelos pt-BR: depois do SMTP, `supabase config push` ou `node scripts/accounts/pushEmailTemplates.mjs`. Os modelos padrão também funcionam, com tokens no fragmento da URL.
 4. **Configurar as variáveis na Vercel** (Preview e, quando autorizado, Production):
    - `SUPABASE_URL`;
    - `SUPABASE_ANON_KEY` (publishable);
@@ -177,7 +196,28 @@ Cada movimentação (`wallet_transactions`) tem:
    - `ACCOUNT_HASH_SECRET` (32+ caracteres aleatórios);
    - `PAYMENT_SANDBOX_WEBHOOK_SECRET` (32+);
    - `CRON_SECRET` (32+).
-5. **Criar o primeiro administrador:** `update public.profiles set role = 'admin' where username = '<seu_usuario>';`
+5. **Criar o primeiro administrador** (SQL Editor do Supabase, depois de a pessoa se cadastrar e confirmar o e-mail). Não há rota que promova contas.
+   1. Conferir a conta pelo e-mail e anotar o UUID exato:
+      ```sql
+      select u.id, u.email, u.email_confirmed_at, u.created_at, p.username, p.role
+        from auth.users u join public.profiles p on p.id = u.id
+       where lower(u.email) = lower('<e-mail>');
+      ```
+   2. Com a confirmação do dono da conta, promover pelo UUID. A mesma instrução grava a auditoria e só age se o e-mail estiver confirmado:
+      ```sql
+      with promoted as (
+          update public.profiles set role = 'admin', updated_at = now()
+           where id = '<uuid>' and role = 'user'
+             and exists (select 1 from auth.users u where u.id = '<uuid>' and u.email_confirmed_at is not null)
+       returning id
+      )
+      insert into public.audit_logs (actor_role, action, target_user_id, target_type, target_id, details)
+      select 'system', 'admin.role_changed', id, 'profile', id::text,
+             jsonb_build_object('from', 'user', 'to', 'admin', 'via', 'sql_editor')
+        from promoted
+      returning id, action, target_user_id, created_at;
+      ```
+   3. Conferir que só essa conta tem papel de equipe: `select id, username, role from public.profiles where role <> 'user';`
 
 Sem essas variáveis a API responde `accounts_disabled` e o site mostra que as contas não estão ativas, sem login falso.
 
