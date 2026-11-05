@@ -64,19 +64,40 @@ Situação em 04/11/2026, branch `feature/123bet-contas`.
     - E-mail: nenhum. Não há MX, SPF, DKIM nem DMARC.
     - Outros: nenhum TXT de verificação, CAA ou curinga.
     - Nada em `auth.blacknow.com.br`.
-  - **A delegação não muda:** os registros do Resend entram na zona da Hostinger (hPanel › Domínios › blacknow.com.br › DNS), só abaixo de `auth`, sem tocar no que existe.
-- **Registros do Resend:** os valores vêm do Resend ao cadastrar o domínio (região São Paulo). Em geral são:
-  - DKIM: TXT `resend._domainkey.auth`;
-  - Return-Path: MX e TXT SPF em `send.auth`.
-- **DMARC do subdomínio:** TXT `_dmarc.auth`, com `v=DMARC1; p=quarantine; adkim=r; aspf=r; pct=100`.
-- **Rastreamento:** cliques e aberturas desligados no domínio do Resend, porque o rastreamento reescreveria os links de confirmação.
+  - **A delegação não muda:** os registros do Resend entram na zona da Hostinger, só abaixo de `auth`, sem tocar no que existe.
+- **Domínio no Resend:** `auth.blacknow.com.br`, região `sa-east-1`. Rastreamento de cliques e de aberturas desligado, porque o rastreamento reescreveria os links de confirmação.
+- **Registros criados na zona da Hostinger** pelo conector oficial, em 05/11/2026. A atualização foi feita sem sobrescrever (`overwrite=false`), e os registros existentes (`@ A` e `www CNAME`) ficaram intactos:
+
+  | Tipo | Nome | Valor |
+  |---|---|---|
+  | TXT (DKIM) | `resend._domainkey.auth` | chave pública `p=MIGfMA0…QIDAQAB` mostrada pelo Resend |
+  | CNAME (SPF/Return-Path) | `send.auth` | `send.forge.rmta.net.` |
+  | CNAME (SPF) | `rsend.auth` | `rsend-sae1.forge.rmta.net.` |
+  | TXT (DMARC) | `_dmarc.auth` | `v=DMARC1; p=quarantine; adkim=r; aspf=r; pct=100` |
+
+  - `ns1` e `ns2` respondem igual.
+  - Pelos resolvedores públicos, `send.auth` resolve para `MX 10 feedback.forge.rmta.net` e SPF `v=spf1 ip4:… ~all`.
+  - `rsend.auth` resolve para SPF `include:amazonses.com` e `MX feedback-smtp.sa-east-1.amazonses.com`.
+- **Política de uso do Resend (AUP, versão de 13/10/2026):** o item 7 de "Prohibited Sending Content" é "Gambling services or products", sem distinguir jogo com moedas fictícias.
+  - O item de "Restricted Industries" deixa a decisão a critério do Resend.
+  - Por isso nenhum envio é ativado (SMTP do Supabase e testes) antes de uma confirmação por escrito do suporte (`support@resend.com`), pedida pelo dono da conta.
+- **Site URL e Redirect URLs, conferidos pelo comportamento do Auth em 05/11/2026:** um link inválido redireciona para o Site URL.
+  - Site URL: alias da prévia da branch (`stake-originals-clone-git-fea-e54b22-….vercel.app`).
+  - Deploys de prévia do time (`stake-originals-clone-*-patricks-projects-a81f4b64.vercel.app/**`) são aceitos como destino.
+  - Destinos externos (`evil.example`) e o domínio de produção não são aceitos e voltam ao Site URL. A produção não tem contas.
+  - Cadastro aberto, confirmação de e-mail obrigatória, só o provedor de e-mail ativo.
 - **SMTP do Supabase:** pela integração oficial (Resend › Integrations › Supabase, projeto 123bet), que grava host, porta, usuário e chave direto no Supabase.
+  - O conector do Resend não oferece essa integração, e o conector do Supabase não altera as configurações de Auth. É uma ação no painel do Resend.
 - **Modelos:** depois do SMTP, `supabase config push` ou `SUPABASE_ACCESS_TOKEN=… node scripts/accounts/pushEmailTemplates.mjs`.
   - O script altera só assuntos, conteúdos, os 2 avisos de segurança e, se pedido, o remetente (`SMTP_SENDER_NAME=123bet SMTP_ADMIN_EMAIL=contas@auth.blacknow.com.br`). Nunca lê nem grava credenciais SMTP.
   - `email-templates.test.mjs` confere os 8 arquivos, os links (`token_hash` na query, rota e `type` aceitos pela API), as variáveis do GoTrue e o `config.toml`.
-- **Estado:** pendente.
-  - O conector oficial do Resend ainda não está instalado na conta.
-  - A Hostinger não tem conector oficial, então os registros serão criados no hPanel.
+- **Banco hospedado, conferido pelo conector oficial em 05/11/2026:**
+  - projeto `ACTIVE_HEALTHY`, Postgres 17.11, 4 migrations;
+  - 17 tabelas, todas com RLS, e 12 políticas;
+  - nenhum privilégio para `anon` e nenhuma escrita para `authenticated`;
+  - nenhuma função do projeto executável pelos clientes;
+  - 1 conta (a descartável dos testes), nenhum papel de equipe, ledger igual às carteiras, 0 erros em 24 h.
+  - Avisos do Supabase: `rls_auto_enable` (função do próprio Supabase, já analisada) e proteção contra senhas vazadas desligada, recurso do plano Pro.
 
 ## Testes visuais do Crash e do Dino (05/11/2026)
 
