@@ -50,22 +50,33 @@ Situação em 04/11/2026, branch `feature/123bet-contas`.
 
 ## E-mail transacional (Resend) e DNS (05/11/2026)
 
-- **Domínio de envio:** `auth.nexusofc.com`, só para os e-mails de autenticação.
-  - O e-mail de `nexusofc.com` continua na Hostinger, sem alteração: MX `mx1/mx2.hostinger.com`, SPF `v=spf1 include:_spf.mail.hostinger.com ~all` e DKIM `hostingermail-a/b/c`.
-  - DMARC do subdomínio já criado na Vercel: `_dmarc.auth` = `v=DMARC1; p=quarantine; adkim=r; aspf=r; pct=100`.
-- **Delegação de DNS dividida (encontrada em 05/11):** no registro `.com` (RDAP da Verisign), `nexusofc.com` aponta para `ns1.dns-parking.com` (Hostinger) e `ns1.vercel-dns.com` (Vercel). São zonas diferentes, e cada resolvedor usa uma delas.
-  - Consultadas diretamente, as duas têm o mesmo MX, SPF, DKIM da Hostinger e `_dmarc`.
-  - Só a da Vercel tem `_dmarc.auth`: a da Hostinger responde que o nome não existe. Um registro do Resend criado só na Vercel ficaria invisível para parte da internet, com verificação instável e DKIM falhando em parte das entregas.
-  - Só a da Hostinger tem `autodiscover` e `autoconfig` (configuração automática de clientes de e-mail) e o IP `2.57.91.91` na raiz.
-  - **Correção recomendada:** copiar `autodiscover` e `autoconfig` para a Vercel e, na Hostinger, deixar só `ns1.vercel-dns.com` e `ns2.vercel-dns.com`. Alternativa: repetir na zona da Hostinger cada registro do Resend.
-- **Registros do Resend:** os valores vêm do painel ou da API do Resend ao cadastrar o domínio (região São Paulo). Em geral são um TXT DKIM em `resend._domainkey.auth` e, para o Return-Path, um MX e um TXT SPF em `send.auth`.
-  - O SPF da raiz não muda: o Return-Path usa o subdomínio `send.auth`.
-  - Rastreamento de cliques e de aberturas desligado, porque reescreveria os links de confirmação.
-- **SMTP do Supabase:** pela integração oficial (Resend › Integrations › Supabase, projeto 123bet), com o remetente `123bet <nao-responda@auth.nexusofc.com>`. A integração grava host, porta, usuário e chave direto no Supabase.
+- **Domínio de envio:** `auth.blacknow.com.br`, só para os e-mails de autenticação. O remetente é `123bet <contas@auth.blacknow.com.br>`. O site continua no endereço da Vercel.
+  - `nexusofc.com` deixou de fazer parte da integração.
+  - Ficou um registro de uma tentativa anterior: `_dmarc.auth.nexusofc.com`, na zona da Vercel. Não afeta nada e pode ser apagado.
+- **`blacknow.com.br`, conferido em 05/11/2026:**
+  - **Registro (RDAP do Registro.br):** ativo.
+    - Titular: pessoa física, o próprio dono do projeto, também contato técnico. Os dados pessoais ficam fora deste documento.
+    - Registrador: Hostinger (HSTDOMAINS).
+    - Criado em 26/10/2025, vence em 26/10/2027; sem DNSSEC.
+  - **DNS autoritativo:** `ns1.dns-parking.com` e `ns2.dns-parking.com`, da Hostinger. Os dois respondem com autoridade e com o mesmo conteúdo. Não há delegação dividida.
+  - **Serviços existentes:**
+    - Site: a raiz `A 2.57.91.91` e `www`, um CNAME para a raiz, mostram a página de domínio estacionado da Hostinger.
+    - E-mail: nenhum. Não há MX, SPF, DKIM nem DMARC.
+    - Outros: nenhum TXT de verificação, CAA ou curinga.
+    - Nada em `auth.blacknow.com.br`.
+  - **A delegação não muda:** os registros do Resend entram na zona da Hostinger (hPanel › Domínios › blacknow.com.br › DNS), só abaixo de `auth`, sem tocar no que existe.
+- **Registros do Resend:** os valores vêm do Resend ao cadastrar o domínio (região São Paulo). Em geral são:
+  - DKIM: TXT `resend._domainkey.auth`;
+  - Return-Path: MX e TXT SPF em `send.auth`.
+- **DMARC do subdomínio:** TXT `_dmarc.auth`, com `v=DMARC1; p=quarantine; adkim=r; aspf=r; pct=100`.
+- **Rastreamento:** cliques e aberturas desligados no domínio do Resend, porque o rastreamento reescreveria os links de confirmação.
+- **SMTP do Supabase:** pela integração oficial (Resend › Integrations › Supabase, projeto 123bet), que grava host, porta, usuário e chave direto no Supabase.
 - **Modelos:** depois do SMTP, `supabase config push` ou `SUPABASE_ACCESS_TOKEN=… node scripts/accounts/pushEmailTemplates.mjs`.
-  - O script altera só assuntos, conteúdos, os 2 avisos de segurança e, se pedido, o nome do remetente. Nunca lê nem grava credenciais SMTP.
+  - O script altera só assuntos, conteúdos, os 2 avisos de segurança e, se pedido, o remetente (`SMTP_SENDER_NAME=123bet SMTP_ADMIN_EMAIL=contas@auth.blacknow.com.br`). Nunca lê nem grava credenciais SMTP.
   - `email-templates.test.mjs` confere os 8 arquivos, os links (`token_hash` na query, rota e `type` aceitos pela API), as variáveis do GoTrue e o `config.toml`.
-- **Estado:** pendente. O conector do Resend não estava disponível nesta sessão, e a delegação precisa ser corrigida antes da verificação do domínio.
+- **Estado:** pendente.
+  - O conector oficial do Resend ainda não está instalado na conta.
+  - A Hostinger não tem conector oficial, então os registros serão criados no hPanel.
 
 ## Testes visuais do Crash e do Dino (05/11/2026)
 
