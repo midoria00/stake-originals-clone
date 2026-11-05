@@ -19,3 +19,6 @@ plinko-game-main.zip
 # Supabase CLI link state (local only)
 supabase/.temp
 visual-check
+
+# Cover image checks (scripts/casino/importImages.mjs)
+.cache

@@ -3,6 +3,7 @@
 // here invents games. The six 123bet Originals are always present as in-house games.
 import { GAMES } from '../../src/games.js'
 import { isCategory, mapCategory } from './categories.js'
+import { normalizeImage } from './images.js'
 import { getProvider, IN_HOUSE_PROVIDER, isProviderId, PROVIDERS } from './providers.js'
 
 export const PAGE_SIZE = 24
@@ -57,7 +58,8 @@ function featureList(list) {
 }
 
 // One feed entry, already mapped to our field names -> normalized game, or { error }.
-export function normalizeGame(raw, source, now = new Date()) {
+// Covers are kept only on hosts of a recorded image authorization (`imageHosts`, see images.js).
+export function normalizeGame(raw, source, now = new Date(), { imageHosts = null } = {}) {
     if (!raw || typeof raw !== 'object') return { error: 'entrada inválida' }
     const provider = isProviderId(raw.provider) ? raw.provider : resolveProviderId(raw.provider)
     if (!provider || provider === IN_HOUSE_PROVIDER.id) return { error: `provedor fora do cadastro: ${text(raw.provider, 60) ?? '?'}` }
@@ -65,7 +67,7 @@ export function normalizeGame(raw, source, now = new Date()) {
     const name = text(raw.name, 120)
     if (!externalId || !name) return { error: 'sem nome ou identificador externo' }
     if (PLACEHOLDER_NAME.test(name)) return { error: 'nome de página, não de jogo' }
-    const image = httpsUrl(raw.image?.src ?? raw.image)
+    const image = normalizeImage(raw.image, imageHosts)
     // Official demo URL as given by the authorized feed; it is kept server-side and only used by launch.
     const demoUrl = httpsUrl(raw.demo?.url ?? raw.demoUrl)
     const demoUrlAllowed = Boolean(demoUrl) || raw.demo === true || raw.demo?.available === true
@@ -76,7 +78,7 @@ export function normalizeGame(raw, source, now = new Date()) {
             name,
             provider,
             category: isCategory(raw.category) ? raw.category : mapCategory(raw.category),
-            image: image ? { src: image, avif: httpsUrl(raw.image?.avif), webp: httpsUrl(raw.image?.webp) } : null,
+            image,
             description: text(raw.description, 600),
             externalId,
             source,
@@ -99,7 +101,7 @@ export function normalizeGame(raw, source, now = new Date()) {
 
 // Title variants of one game: "Tut's"/"Tut’s", "Six Six Six"/"SixSixSix", "X Slot by Pragmatic Play".
 // Titles with no Latin letters or digits keep their folded form, so they never collapse into one key.
-const titleKey = (name) => fold(name).replace(/\s+slot(\s+by\s+.+)?$/, '').replace(/[^a-z0-9]/g, '') || fold(name)
+export const titleKey = (name) => fold(name).replace(/\s+slot(\s+by\s+.+)?$/, '').replace(/[^a-z0-9]/g, '') || fold(name)
 
 // An official demo first, then the entry with more documented fields.
 const rank = (game) => (game.demo.available ? 100 : 0)
