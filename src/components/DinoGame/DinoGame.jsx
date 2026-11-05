@@ -731,7 +731,7 @@ function DinoGame() {
                     {/* Betting Sidebar */}
                     <MobileBetSheet
                         title={t('dino.betControls')}
-                        className="dino-bet-sheet"
+                        className={`dino-bet-sheet${isPlaying ? ' dino-bet-sheet--playing' : ''}`}
                         collapseOn={gamePhase === 'running' || gamePhase === 'waiting'}
                     >
                         <div className="dino-sidebar">
