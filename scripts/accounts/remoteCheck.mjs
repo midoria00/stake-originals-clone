@@ -17,6 +17,18 @@ if (!BASE || !SB || !ANON || !SERVICE) {
 }
 
 const RUN = `qa${Date.now().toString(36)}`
+
+// Protected previews (Vercel Authentication): VERCEL_SHARE_URL is a temporary share link; opening it
+// yields the deployment's access cookie, sent with every request. Nothing permanent is bypassed.
+let vercelCookie = ''
+if (process.env.VERCEL_SHARE_URL) {
+    const opened = await fetch(process.env.VERCEL_SHARE_URL, { redirect: 'manual' })
+    vercelCookie = opened.headers.getSetCookie().map((c) => c.split(';')[0]).filter((c) => c.startsWith('_vercel_jwt=')).join('; ')
+    if (!vercelCookie) {
+        console.error('The share link did not return a Vercel access cookie.')
+        process.exit(2)
+    }
+}
 const results = []
 const check = (name, ok, detail = '') => {
     results.push({ name, ok: Boolean(ok), detail })
@@ -29,7 +41,9 @@ function client() {
     async function call(method, path, body) {
         const headers = { origin: BASE, 'x-requested-with': '123bet' }
         if (body !== undefined) headers['content-type'] = 'application/json'
-        if (jar.size) headers.cookie = [...jar].map(([n, v]) => `${n}=${encodeURIComponent(v)}`).join('; ')
+        const cookies = [...jar].map(([n, v]) => `${n}=${encodeURIComponent(v)}`)
+        if (vercelCookie) cookies.push(vercelCookie)
+        if (cookies.length) headers.cookie = cookies.join('; ')
         const response = await fetch(`${BASE}/api/app/${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), redirect: 'manual' })
         for (const header of response.headers.getSetCookie()) {
             const [pair] = header.split(';')
@@ -42,7 +56,7 @@ function client() {
         try { data = await response.json() } catch { data = null }
         return { status: response.status, data }
     }
-    return { jar, get: (p) => call('GET', p), post: (p, b = {}) => call('POST', p, b), accessToken: () => jar.get('__Host-123bet-at') }
+    return { jar, call, get: (p) => call('GET', p), post: (p, b = {}) => call('POST', p, b), accessToken: () => jar.get('__Host-123bet-at') }
 }
 
 async function admin(path, init = {}) {
@@ -91,8 +105,40 @@ try {
     await login.post('auth/logout')
     check('logout ends that session', (await login.get('me')).data?.user === null)
     check('other session still valid', (await a.c.get('me')).data?.user?.email === a.email)
-    const csrf = await fetch(`${BASE}/api/app/wallet/free-credits`, { method: 'POST', headers: { origin: 'https://evil.example', 'x-requested-with': '123bet', 'content-type': 'application/json', cookie: `__Host-123bet-at=${a.c.accessToken()}` }, body: '{}' })
+    const csrf = await fetch(`${BASE}/api/app/wallet/free-credits`, { method: 'POST', headers: { origin: 'https://evil.example', 'x-requested-with': '123bet', 'content-type': 'application/json', cookie: [`__Host-123bet-at=${a.c.accessToken()}`, vercelCookie].filter(Boolean).join('; ') }, body: '{}' })
     check('cross-site write refused', csrf.status === 403)
+
+    // Session renewal: without the access cookie, the refresh cookie must restore the session.
+    a.c.jar.delete('__Host-123bet-at')
+    const renewed = await a.c.get('me')
+    check('expired access token renewed from the refresh cookie', renewed.data?.user?.email === a.email && a.c.jar.has('__Host-123bet-at'))
+    const profile = await a.c.call('PATCH', 'account/profile', { fullName: 'Nome Atualizado' })
+    check('profile update', profile.status === 200 && profile.data.profile.fullName === 'Nome Atualizado')
+    check('private route refused without a session', (await client().get('wallet')).status === 401)
+    const exported = await a.c.get('account/export')
+    check('data export (JSON with the profile)', exported.status === 200 && exported.data?.profile?.username === a.username, `status ${exported.status}`)
+
+    // Password recovery link (same token the e-mail carries) and password change.
+    const second = client()
+    await second.post('auth/login', { email: a.email, password: a.password })
+    const recovery = await admin('/auth/v1/admin/generate_link', { method: 'POST', body: JSON.stringify({ type: 'recovery', email: a.email }) })
+    const newPassword = `Qa-${randomBytes(9).toString('base64url')}8`
+    const reset = await client().post('auth/reset', { tokenHash: recovery.data.hashed_token ?? recovery.data.properties?.hashed_token, password: newPassword, passwordConfirm: newPassword })
+    check('password reset through the recovery link', reset.status === 200, `status ${reset.status} ${reset.data?.error ?? ''}`)
+    check('old password stops working', (await client().post('auth/login', { email: a.email, password: a.password })).data?.error === 'invalid_credentials')
+    check('reset ends the other sessions', (await second.get('me')).data?.user === null)
+    a.password = newPassword
+    const relogin = await a.c.post('auth/login', { email: a.email, password: a.password })
+    check('login with the new password', relogin.status === 200)
+    const changed = `Qa-${randomBytes(9).toString('base64url')}6`
+    const change = await a.c.post('auth/password', { currentPassword: a.password, newPassword: changed, passwordConfirm: changed })
+    check('password change with the current password', change.status === 200, `status ${change.status} ${change.data?.error ?? ''}`)
+    a.password = changed
+    const other = client()
+    await other.post('auth/login', { email: a.email, password: a.password })
+    await other.post('auth/logout-all')
+    check('logout from all devices ends every session', (await other.get('me')).data?.user === null && (await a.c.get('me')).data?.user === null)
+    await a.c.post('auth/login', { email: a.email, password: a.password })
 
     // Wallet, games, history ---------------------------------------------------------------------
     const free = await a.c.post('wallet/free-credits', { amount: '500', idempotencyKey: key('free') })
@@ -130,6 +176,49 @@ try {
     const lastTx = tx.data.items[0]
     check('wallet equals the last ledger balance', wallet.data.wallet.balance === lastTx.balanceAfter)
     check('stats per game', wallet.data.stats.games.length >= 5)
+
+    // Football (simulated bets on the sports feed; demo data is labelled as simulated)
+    const sportsGet = async (path) => (await fetch(`${BASE}/api/sports/${path}`, { headers: vercelCookie ? { cookie: vercelCookie } : {} })).json()
+    // Live matches plus today's and tomorrow's schedule (Brasília dates), as the sports page lists them.
+    const brt = (offsetDays) => new Date(Date.now() - 3 * 3600e3 + offsetDays * 86400e3).toISOString().slice(0, 10)
+    const feeds = await Promise.all([sportsGet('matches'), sportsGet(`matches?view=date&date=${brt(0)}`), sportsGet(`matches?view=date&date=${brt(1)}`)])
+    const feed = { matches: feeds.flatMap((x) => x.matches ?? []) }
+    // First match (upcoming before live) that still offers an open selection.
+    let candidate
+    let market
+    let pick
+    for (const m of [...feed.matches.filter((x) => x.status.phase === 'scheduled'), ...feed.matches.filter((x) => x.status.phase === 'live')]) {
+        const detail = await sportsGet(`match?id=${m.id}`)
+        for (const mk of detail.match?.markets ?? []) {
+            const open = mk.selections.find((sel) => !sel.suspended)
+            if (open) { candidate = m; market = mk; pick = open; break }
+        }
+        if (candidate) break
+    }
+    if (!candidate) throw new Error('no open football market in the feed')
+    const leg = { matchId: String(candidate.id), market: market.key, pick: pick.pick, line: pick.line, odds: pick.odd }
+    const walletBefore = (await a.c.get('wallet')).data.wallet
+    // Live odds move at each minute; like the bet slip, accept the odds the server reports and retry.
+    let sportsKey
+    let bet
+    let oddsRefreshed = 0
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        sportsKey = key('sports')
+        bet = await a.c.post('sports/bets', { kind: 'single', stake: '2', selections: [leg], idempotencyKey: sportsKey })
+        if (bet.data?.error !== 'odds_changed') break
+        oddsRefreshed += 1
+        leg.odds = bet.data.changes[0].odds
+    }
+    check('football bet placed on the server', bet.status === 200 && bet.data.bet.status === 'open', `status ${bet.status} ${bet.data?.error ?? ''}, odds refreshed ${oddsRefreshed}x, minute ${candidate.status.elapsed ?? '-'} (${candidate.simulated ? 'simulated feed' : 'real feed'})`)
+    if (bet.status === 200) {
+        const debited = (walletBefore.balance + walletBefore.promoBalance) - (bet.data.wallet.balance + bet.data.wallet.promoBalance)
+        check('football stake debited once', debited === 200, `debited ${debited}`)
+        const replay = await a.c.post('sports/bets', { kind: 'single', stake: '2', selections: [leg], idempotencyKey: sportsKey })
+        check('football replay returns the same bet', replay.data?.bet?.id === bet.data.bet.id && replay.data.replayed === true)
+        check('football bet listed in history', (await a.c.get('history/sports')).data.items.some((b) => b.id === bet.data.bet.id))
+    }
+    const forged = await a.c.post('sports/bets', { kind: 'single', stake: '2', selections: [{ ...leg, odds: Math.round((pick.odd + 5) * 100) / 100 }], idempotencyKey: key('sports') })
+    check('forged odds refused', forged.data?.error === 'odds_changed', `status ${forged.status} ${forged.data?.error ?? ''}`)
 
     // Isolation ----------------------------------------------------------------------------------
     const b = await newUser('b')
