@@ -3,11 +3,11 @@ import { Link, Navigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Maximize, Minimize, Star, TriangleAlert } from 'lucide-react'
 import { getProvider } from '../../server/casino/providers.js'
 import { fetchGames, fetchLaunch } from '../casino/api'
-import { favoriteId } from '../casino/components'
+import { favoriteId, GameArt } from '../casino/components'
 import Page from '../components/Page'
 import { t } from '../i18n'
 import { formatDate, formatNumber } from '../i18n/format'
-import { useFavoriteGames } from '../lib/storage'
+import { recordRecentGame, useFavoriteGames } from '../lib/storage'
 
 const percent = (value) => `${formatNumber(value, 2)}%`
 
@@ -32,8 +32,23 @@ function Details({ game }) {
     )
 }
 
-// The source must be named (slot.report terms: "Do not misrepresent the data source").
-const SOURCE_NOTES = { 'slot-report': 'casino.game.sourceSlotReport' }
+// The source is named and linked (slot.report terms: "Do not misrepresent the data source"; its
+// API page asks for a plain link to slot.report).
+const SOURCES = { 'slot-report': { name: 'slot.report', url: 'https://slot.report/', note: 'casino.game.sourceSlotReport' } }
+
+function SourceNote({ game }) {
+    const source = SOURCES[game.source]
+    return (
+        <>
+            {source && (
+                <p className="muted">
+                    {t('casino.game.sourceLabel')} <a href={source.url} target="_blank" rel="noopener">{source.name}</a>. {t(source.note)}
+                </p>
+            )}
+            {game.image?.credit && <p className="muted">{t('casino.game.imageCredit', { credit: game.image.credit })}</p>}
+        </>
+    )
+}
 
 export default function GameLaunchPage() {
     const { id } = useParams()
@@ -68,6 +83,12 @@ export default function GameLaunchPage() {
     }, [])
 
     const { status, game, launch } = state
+    const recordedId = game && !game.internalPath ? game.id : null
+    // Catalog games join Recentes once their page opens (Originals are recorded by the layout).
+    useEffect(() => {
+        if (recordedId) recordRecentGame(recordedId)
+    }, [recordedId])
+
     if (status === 'internal') return <Navigate to={game.internalPath} replace />
     if (status === 'missing' || status === 'error') {
         return (
@@ -107,10 +128,9 @@ export default function GameLaunchPage() {
                 )}
             </div>
 
-            <div className="game-stage" ref={stageRef}>
-                {status === 'checking' && <div className="state-panel" role="status"><p>{t('casino.game.loading')}</p></div>}
-                {status === 'ready' && canPlay && (
-                    // Only official demo URLs from an authorized catalog, on origins the owner allowed (server-checked).
+            {canPlay ? (
+                <div className="game-stage" ref={stageRef}>
+                    {/* Only official demo URLs from an authorized catalog, on origins the owner allowed (server-checked). */}
                     <iframe
                         src={launch.url}
                         title={t('casino.game.frameTitle', { name: game.name, provider: provider?.name ?? game.provider })}
@@ -118,22 +138,29 @@ export default function GameLaunchPage() {
                         sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
                         referrerPolicy="no-referrer"
                     />
-                )}
-                {status === 'ready' && !canPlay && (
-                    <div className="state-panel" role="status">
-                        <TriangleAlert size={28} aria-hidden="true" />
-                        <h2>{t('casino.game.unavailableTitle')}</h2>
-                        <p>{t(`casino.game.reasons.${launch?.reason ?? 'error'}`)}</p>
+                </div>
+            ) : (
+                <div className="game-hero">
+                    <span className="game-hero__art catalog-card__art"><GameArt game={game} eager /></span>
+                    <div className="game-hero__info" role="status">
+                        {status === 'checking' ? <p>{t('casino.game.loading')}</p> : (
+                            <>
+                                <TriangleAlert size={28} aria-hidden="true" />
+                                <h2>{t('casino.game.unavailableTitle')}</h2>
+                                <p>{t(`casino.game.reasons.${launch?.reason ?? 'error'}`)}</p>
+                                {!game.image?.src && <p className="muted">{t('casino.game.noCover')}</p>}
+                            </>
+                        )}
                     </div>
-                )}
-            </div>
+                </div>
+            )}
             {canPlay && <p className="muted">{t('casino.game.demoInfo')}</p>}
 
             <section className="page-section" aria-labelledby="game-details">
                 <div className="page-section__head"><h2 id="game-details">{t('casino.game.details')}</h2></div>
                 {game.description && <p>{game.description}</p>}
                 <Details game={game} />
-                {SOURCE_NOTES[game.source] && <p className="muted">{t(SOURCE_NOTES[game.source])}</p>}
+                <SourceNote game={game} />
             </section>
         </Page>
     )

@@ -35,5 +35,6 @@ export default {
     infoPrivacyBody: 'Tudo fica salvo neste navegador. Não usamos rastreadores de terceiros.',
     openWallet: 'Abrir carteira',
     searchTeams: 'Buscar "{query}" nos times de futebol',
+    searchCatalog: 'Buscar "{query}" em todos os jogos do cassino',
     newBadge: 'Novo',
 }

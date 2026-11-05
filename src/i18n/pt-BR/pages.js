@@ -32,6 +32,8 @@ export default {
         empty: 'Os jogos que você abrir aparecem aqui.',
         clear: 'Limpar recentes',
         openedAt: 'Aberto em {date}',
+        originals: '123bet Originals',
+        providerGames: 'Jogos de provedores',
     },
     myBets: {
         title: 'Minhas apostas',
