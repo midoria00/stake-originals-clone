@@ -19,6 +19,19 @@ let offset = 0
 const now = () => Date.now() + offset
 const floats = []
 const ints = []
+// Simulates Supabase Auth answering the token endpoint with this status (429: shared IP budget spent).
+let tokenOutage = 0
+let refreshCalls = 0
+// Delays settle_round (the crash/payout path) to reproduce interleaved requests.
+let settleDelayMs = 0
+const authFetch = async (target, init) => {
+    if (settleDelayMs && String(target).endsWith('/rest/v1/rpc/settle_round')) await new Promise((resolve) => setTimeout(resolve, settleDelayMs))
+    if (String(target).includes('/auth/v1/token') && String(target).includes('refresh_token')) {
+        refreshCalls += 1
+        if (tokenOutage) return Promise.resolve(new Response(JSON.stringify({ msg: 'unavailable' }), { status: tokenOutage, headers: { 'content-type': 'application/json' } }))
+    }
+    return emulator.fetch(target, init)
+}
 const rng = { float: () => floats.shift() ?? 0.5, int: (min) => (ints.length ? ints.shift() : min) }
 
 let ipCounter = 0
@@ -76,7 +89,7 @@ before(async () => {
             SUPABASE_URL: 'https://emulator.supabase.test', SUPABASE_ANON_KEY: ANON_KEY, SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY,
             ACCOUNT_HASH_SECRET: 'hash-secret-for-tests-only-000000000000', PAYMENT_SANDBOX_WEBHOOK_SECRET: SANDBOX_SECRET, CRON_SECRET,
         },
-        fetch: emulator.fetch, rng, now, sleep: async (ms) => { offset += ms },
+        fetch: authFetch, rng, now, sleep: async (ms) => { offset += ms },
     })
 })
 
@@ -163,6 +176,41 @@ describe('sign-up, confirmation and login', () => {
         assert.notEqual(c.jar.get('__Host-123bet-at'), before)
     })
 
+    test('a Supabase 429 or outage while refreshing keeps the session: 503, cookies stay, retry works', async () => {
+        const { c } = await register('limite@example.com', 'limite')
+        const start = offset
+        offset += 2 * 3600 * 1000
+        try {
+            for (const status of [429, 503]) {
+                tokenOutage = status
+                const me = await c.get('me')
+                assert.equal(me.status, 503)
+                assert.equal(me.data.error, 'auth_unavailable')
+                assert.ok(c.jar.has('__Host-123bet-rt') && c.jar.has('__Host-123bet-at'), `cookies kept on ${status}`)
+            }
+            tokenOutage = 0
+            assert.equal((await c.get('me')).data.user.email, 'limite@example.com')
+        } finally {
+            tokenOutage = 0
+            offset = start
+        }
+    })
+
+    test('refreshes are limited per IP before they reach Supabase', async () => {
+        const anon = client()
+        const before = refreshCalls
+        let limited = null
+        for (let i = 0; i < 125 && !limited; i += 1) {
+            anon.jar.set('__Host-123bet-rt', `inventado-${i}`)
+            const me = await anon.get('me')
+            if (me.status === 429) limited = { attempt: i + 1, body: me.data }
+            else assert.equal(me.data.user, null)
+        }
+        assert.equal(limited?.attempt, 121)
+        assert.equal(limited.body.error, 'rate_limited')
+        assert.equal(refreshCalls - before, 120)
+    })
+
     test('logout ends the session; logout-all ends every session', async () => {
         const { c } = await register('sair@example.com', 'sair_user')
         const other = client()
@@ -199,6 +247,43 @@ describe('sign-up, confirmation and login', () => {
         assert.equal((await c.get('me')).data.user, null)
         assert.equal((await client().post('auth/login', { email: 'esqueci@example.com', password: PASSWORD })).data.error, 'invalid_credentials')
         assert.equal((await client().post('auth/login', { email: 'esqueci@example.com', password: NEW })).status, 200)
+    })
+
+    test('link tokens in the URL fragment: only sessions opened from an e-mail link, never a signed-in session', async () => {
+        await register('fragmento@example.com', 'fragmento')
+        const signedIn = client()
+        assert.equal((await signedIn.post('auth/login', { email: 'fragmento@example.com', password: PASSWORD })).status, 200)
+        const ATTACK = 'Senha-trocada-sem-a-atual-1'
+        // A stolen or shared session cookie must not set a new password without the current one.
+        const stolen = { accessToken: signedIn.jar.get('__Host-123bet-at'), refreshToken: 'x', password: ATTACK, passwordConfirm: ATTACK }
+        assert.equal((await client().post('auth/reset', stolen)).data.error, 'invalid_link')
+        assert.equal((await client().post('auth/confirm', { accessToken: stolen.accessToken, refreshToken: 'x' })).data.error, 'invalid_link')
+        assert.equal((await client().post('auth/login', { email: 'fragmento@example.com', password: PASSWORD })).status, 200)
+        // Supabase's default recovery e-mail: the link is verified by Supabase and lands with fragment tokens.
+        await client().post('auth/recover', { email: 'fragmento@example.com' })
+        const verified = await (await emulator.fetch('https://emulator.supabase.test/auth/v1/verify', {
+            method: 'POST', headers: { apikey: ANON_KEY, 'content-type': 'application/json' },
+            body: JSON.stringify({ type: 'recovery', token_hash: emulator.lastLink('fragmento@example.com', 'recovery') }),
+        })).json()
+        const NEW = 'Nova-senha-pelo-link-7'
+        const reset = await client().post('auth/reset', { accessToken: verified.access_token, refreshToken: verified.refresh_token, password: NEW, passwordConfirm: NEW })
+        assert.equal(reset.status, 200, JSON.stringify(reset.data))
+        // An hour later the same link session no longer counts as a fresh link.
+        offset += 3700 * 1000
+        try {
+            await client().post('auth/recover', { email: 'fragmento@example.com' })
+            const late = await (await emulator.fetch('https://emulator.supabase.test/auth/v1/verify', {
+                method: 'POST', headers: { apikey: ANON_KEY, 'content-type': 'application/json' },
+                body: JSON.stringify({ type: 'recovery', token_hash: emulator.lastLink('fragmento@example.com', 'recovery') }),
+            })).json()
+            offset += 3700 * 1000
+            const claims = JSON.parse(Buffer.from(late.access_token.split('.')[1], 'base64url').toString('utf8'))
+            assert.equal(claims.amr[0].method, 'otp')
+            const tooLate = await client().post('auth/reset', { accessToken: late.access_token, refreshToken: late.refresh_token, password: ATTACK, passwordConfirm: ATTACK })
+            assert.ok(tooLate.status === 400 || tooLate.status === 401, JSON.stringify(tooLate.data))
+        } finally {
+            offset = 0
+        }
     })
 })
 
@@ -316,18 +401,62 @@ describe('wallet and games', () => {
         assert.equal(autoWatch.data.round.payout, 150)
     })
 
+    test('crash/watch is limited per player (each call can hold a function for 10 s)', async () => {
+        const { c } = await register('vigia@example.com', 'vigia')
+        floats.push(0.0) // crash point 1.00x: the round is over at once and watch answers immediately
+        const round = (await c.post('games/crash/start', { stake: 1, idempotencyKey: key('crash') })).data.round.id
+        let limitedAt = null
+        for (let i = 1; i <= 125 && !limitedAt; i += 1) {
+            const watch = await c.post('games/crash/watch', { roundId: round })
+            if (watch.status === 429) limitedAt = i
+            else assert.equal(watch.data.state, 'crashed')
+        }
+        assert.equal(limitedAt, 121)
+    })
+
     test('dino: each jump is rolled on the server', async () => {
+        floats.push(0.1, 0.2) // rolls of jumps 1 and 2, drawn when the round opens (the rest: 0.5)
         const start = await player.c.post('games/dino/start', { stake: 1, difficulty: 'medium', idempotencyKey: key('dino') })
         const roundId = start.data.round.id
-        floats.push(0.1, 0.2)
         assert.equal((await player.c.post('games/dino/jump', { roundId })).data.outcome, 'cleared')
         const second = await player.c.post('games/dino/jump', { roundId })
         assert.equal(second.data.multiplier, 2.34)
         const cash = await player.c.post('games/dino/cashout', { roundId })
         assert.equal(cash.data.round.payout, 234)
-        const lost = await player.c.post('games/dino/start', { stake: 1, difficulty: 'hard', idempotencyKey: key('dino') })
         floats.push(0.99)
+        const lost = await player.c.post('games/dino/start', { stake: 1, difficulty: 'hard', idempotencyKey: key('dino') })
         assert.equal((await player.c.post('games/dino/jump', { roundId: lost.data.round.id })).data.outcome, 'crashed')
+    })
+
+    test('dino: parallel jumps for the same step get the same roll, so a crash cannot be dropped', async () => {
+        // Step 1 crashes (0.99); a second, independent draw would have survived (0.1).
+        floats.push(0.99, 0.1)
+        const start = await player.c.post('games/dino/start', { stake: 1, difficulty: 'medium', idempotencyKey: key('dino') })
+        const roundId = start.data.round.id
+        settleDelayMs = 40 // the crash path is slower than a survival, as with the wallet lock on Postgres
+        try {
+            const jumps = await Promise.all([1, 2, 3].map(() => player.c.post('games/dino/jump', { roundId })))
+            assert.ok(jumps.every((j) => j.data.outcome !== 'cleared'), JSON.stringify(jumps.map((j) => [j.status, j.data.outcome ?? j.data.error])))
+        } finally {
+            settleDelayMs = 0
+        }
+        const round = (await player.c.get('history/rounds?game=dino')).data.items.find((r) => r.id === roundId)
+        assert.equal(round.status, 'settled')
+        assert.equal(round.payout, 0)
+    })
+
+    test('a win above 1,000,000x pays the maximum instead of leaving the round stuck', async () => {
+        // 24 cleared jumps on hard is far above the cap (the database refuses larger payouts).
+        const { c: lucky } = await register('maximo@example.com', 'maximo')
+        floats.push(...Array(24).fill(0))
+        const start = await lucky.post('games/dino/start', { stake: 1, difficulty: 'hard', idempotencyKey: key('dino') })
+        const roundId = start.data.round.id
+        for (let i = 0; i < 24; i += 1) assert.equal((await lucky.post('games/dino/jump', { roundId })).data.outcome, 'cleared')
+        const cash = await lucky.post('games/dino/cashout', { roundId })
+        assert.equal(cash.status, 200, JSON.stringify(cash.data))
+        assert.equal(cash.data.round.payout, 100 * 1_000_000)
+        const next = await lucky.post('games/dino/start', { stake: 1, difficulty: 'easy', idempotencyKey: key('dino') })
+        assert.equal(next.status, 200)
     })
 
     test('free credits, history filters, paging and stats', async () => {

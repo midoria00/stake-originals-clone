@@ -112,11 +112,16 @@ export async function currentRound(ctx, game) {
 
 // Mines ------------------------------------------------------------------------------------------
 
+// settle_round refuses payouts above 1,000,000x the stake; rarer wins (Mines full clears with 8+
+// mines, Dino runs of 18+ jumps on hard) pay that maximum instead of leaving the round stuck open.
+export const MAX_WIN_MULTIPLIER = 1_000_000
+const capped = (round, payout) => Math.min(payout, round.stake * MAX_WIN_MULTIPLIER)
+
 function minesPayout(round) {
     const hits = round.state.revealed?.length ?? 0
     const multiplier = minesMultiplier(round.params.mines, hits)
     const bp = toBp(multiplier)
-    return { bp, payout: hits === 0 ? round.stake : applyMultiplier(round.stake, bp), multiplier }
+    return { bp, payout: hits === 0 ? round.stake : capped(round, applyMultiplier(round.stake, bp)), multiplier }
 }
 
 const minesCashout = (ctx, round, secret) => {
@@ -242,24 +247,28 @@ const dinoCashout = (ctx, round) => {
     const cleared = round.state.cleared ?? 0
     const multiplier = dinoMultiplier(round.params.difficulty, cleared)
     const bp = toBp(multiplier)
-    return settle(ctx, round, cleared === 0 ? round.stake : applyMultiplier(round.stake, bp), bp, { cleared, multiplier, cashedOut: true })
+    return settle(ctx, round, cleared === 0 ? round.stake : capped(round, applyMultiplier(round.stake, bp)), bp, { cleared, multiplier, cashedOut: true })
 }
 
 export async function dinoStart(ctx, body) {
     const stake = stakeCents(body.stake)
     const difficulty = oneOf(body.difficulty, DINO_DIFFICULTIES, 'invalid_difficulty')
     const key = idempotencyKey(body.idempotencyKey)
-    return openFresh(ctx, 'dino', dinoCashout, { p_stake: stake, p_params: { difficulty }, p_state: { cleared: 0 }, p_secret: {}, p_idem: key })
+    // Every jump's roll is drawn now and kept secret: parallel or repeated requests for the same step
+    // all get the same outcome, so a crash cannot be dropped by a concurrent survival that wins the race.
+    const rolls = Array.from({ length: DINO_MAX_JUMPS }, () => ctx.rng.float())
+    return openFresh(ctx, 'dino', dinoCashout, { p_stake: stake, p_params: { difficulty }, p_state: { cleared: 0 }, p_secret: { rolls }, p_idem: key })
 }
 
 export async function dinoJump(ctx, body) {
-    const { round } = await loadOpen(ctx, body.roundId, 'dino')
+    const { round, secret } = await loadOpen(ctx, body.roundId, 'dino')
     if (round.status !== 'open') return { round: publicRound(round), outcome: 'settled' }
     const cleared = round.state.cleared ?? 0
     // A retried request (lost response) carries the step it saw: it gets the current state, not a new roll.
     if (body.step !== undefined && body.step !== round.step) return { round: publicRound(round), outcome: 'cleared', cleared, multiplier: dinoMultiplier(round.params.difficulty, cleared), stale: true }
     if (cleared >= DINO_MAX_JUMPS) fail('max_jumps', 409)
-    const roll = ctx.rng.float()
+    // Rounds opened before the rolls were drawn up front keep drawing per jump.
+    const roll = Number.isFinite(secret?.rolls?.[cleared]) ? secret.rolls[cleared] : ctx.rng.float()
     if (roll >= DINO_SURVIVAL[round.params.difficulty]) {
         const settled = await settle(ctx, round, 0, 0, { cleared, crashedAt: cleared + 1, roll })
         return { ...settled, outcome: 'crashed' }

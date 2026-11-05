@@ -18,12 +18,13 @@ export function createEmulator({ db, serviceKey, anonKey, now = Date.now }) {
     const publicUser = (user) => ({ id: user.id, email: user.email, email_confirmed_at: user.confirmedAt, confirmed_at: user.confirmedAt, aud: 'authenticated', role: 'authenticated' })
     const reply = (status, body) => new Response(body === undefined ? null : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
-    function issue(user, sessionId = randomUUID()) {
+    // `amr` like GoTrue: how the session was authenticated, kept across refreshes.
+    function issue(user, sessionId = randomUUID(), amr = [{ method: 'password', timestamp: Math.floor(now() / 1000) }]) {
         const exp = Math.floor(now() / 1000) + 3600
-        const access = `${b64({ alg: 'none' })}.${b64({ sub: user.id, exp, session_id: sessionId })}.${randomBytes(8).toString('hex')}`
+        const access = `${b64({ alg: 'none' })}.${b64({ sub: user.id, exp, session_id: sessionId, amr })}.${randomBytes(8).toString('hex')}`
         const refresh = randomBytes(16).toString('hex')
         sessions.set(access, { userId: user.id, sessionId, exp })
-        refreshTokens.set(refresh, { userId: user.id, sessionId })
+        refreshTokens.set(refresh, { userId: user.id, sessionId, amr })
         return { access_token: access, refresh_token: refresh, expires_in: 3600, token_type: 'bearer', user: publicUser(user) }
     }
 
@@ -90,7 +91,7 @@ export function createEmulator({ db, serviceKey, anonKey, now = Date.now }) {
                 if (!stored) return reply(400, { error_code: 'refresh_token_not_found', msg: 'Invalid Refresh Token' })
                 refreshTokens.delete(body.refresh_token)
                 for (const [token, session] of sessions) if (session.sessionId === stored.sessionId) sessions.delete(token)
-                return reply(200, issue(userById(stored.userId), stored.sessionId))
+                return reply(200, issue(userById(stored.userId), stored.sessionId, stored.amr))
             }
             case 'GET /auth/v1/user': {
                 const session = bearer(init)
@@ -140,13 +141,14 @@ export function createEmulator({ db, serviceKey, anonKey, now = Date.now }) {
                     user.email = user.pendingEmail
                     users.set(user.email, user)
                     await db.query('update auth.users set email = $1 where id = $2', [user.email, user.id])
-                    return reply(200, issue(user))
+                    return reply(200, issue(user, undefined, [{ method: 'otp', timestamp: Math.floor(now() / 1000) }]))
                 }
                 if (!user.confirmedAt) {
                     user.confirmedAt = new Date(now()).toISOString()
                     await db.query('update auth.users set email_confirmed_at = now() where id = $1', [user.id])
                 }
-                return reply(200, issue(user))
+                // GoTrue's implicit flow (tokens in the URL fragment) issues link sessions as "otp".
+                return reply(200, issue(user, undefined, [{ method: 'otp', timestamp: Math.floor(now() / 1000) }]))
             }
             default: {
                 const match = /^DELETE \/auth\/v1\/admin\/users\/([0-9a-f-]{36})$/.exec(route)

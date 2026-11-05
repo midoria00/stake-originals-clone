@@ -266,12 +266,34 @@ async function sessionFromLink(ctx, body, type) {
         }
         if (typeof body.accessToken === 'string' && typeof body.refreshToken === 'string' && body.accessToken.length < 4096 && body.refreshToken.length < 512) {
             const user = await ctx.sb.auth.getUser(body.accessToken)
+            // Fragment tokens must come from an e-mail link opened just now. Any other valid access
+            // token (an ordinary signed-in session) would otherwise set a new password through
+            // auth/reset without the current one, which auth/password requires.
+            if (!openedFromLink(body.accessToken, ctx.now())) throw new ApiError(400, 'invalid_link')
             return { access_token: body.accessToken, refresh_token: body.refreshToken, expires_in: v.int(body.expiresIn ?? 3600, 60, 86400, 'invalid_link'), user }
         }
     } catch (error) {
+        if (error instanceof ApiError) throw error
         throw authError(error, 'invalid_link')
     }
     throw new ApiError(400, 'invalid_link')
+}
+
+// GoTrue lists how a session was authenticated in the access token's `amr` claim. Sessions created by
+// e-mail links carry one of these methods; password and OAuth sign-ins (and their refreshes) do not.
+const LINK_METHODS = new Set(['otp', 'recovery', 'invite', 'magiclink', 'email/signup', 'email_change'])
+const LINK_SESSION_MAX_AGE_S = 3600
+
+function openedFromLink(accessToken, now) {
+    let claims
+    try {
+        claims = JSON.parse(Buffer.from(accessToken.split('.')[1], 'base64url').toString('utf8'))
+    } catch {
+        return false
+    }
+    // The token was already validated by Supabase (getUser); this only reads how it was issued.
+    return Array.isArray(claims?.amr) && claims.amr.some((entry) => LINK_METHODS.has(entry?.method)
+        && Number.isFinite(entry.timestamp) && now / 1000 - entry.timestamp <= LINK_SESSION_MAX_AGE_S)
 }
 
 const accountRoutes = {
@@ -518,7 +540,8 @@ const gameRoutes = {
     'GET games/mines/current': { auth: 'user', run: (ctx) => games.currentRound(ctx, 'mines') },
     'POST games/crash/start': { auth: 'user', game: true, run: (ctx, body) => games.crashStart(ctx, body) },
     'POST games/crash/cashout': { auth: 'user', game: true, run: (ctx, body) => games.crashCashout(ctx, body) },
-    'POST games/crash/watch': { auth: 'user', run: (ctx, body) => games.crashWatch(ctx, body) },
+    // Each call can hold a function for up to 10 s; the game screen makes a few per round.
+    'POST games/crash/watch': { auth: 'user', run: async (ctx, body) => { await limitUser(ctx, 'watch', 120, 60); return games.crashWatch(ctx, body) } },
     'GET games/crash/current': { auth: 'user', run: (ctx) => games.currentRound(ctx, 'crash') },
     'POST games/dino/start': { auth: 'user', game: true, run: (ctx, body) => games.dinoStart(ctx, body) },
     'POST games/dino/jump': { auth: 'user', game: true, run: (ctx, body) => games.dinoJump(ctx, body) },
@@ -678,7 +701,9 @@ async function dispatch(request, deps) {
             const given = (request.headers.get('authorization') ?? '').replace(/^Bearer /, '')
             if (deps.config.cronSecret.length < 32 || !equalSecret(given, deps.config.cronSecret)) throw new ApiError(401, 'unauthorized')
         } else if (route.auth !== 'public') {
-            const session = await resolveSession(request, deps.sb, deps.now())
+            // 120 refreshes per 5 minutes per IP: about 1,400 players behind one address renewing their
+            // hourly token, far below Supabase's shared budget (auth.rate_limit.token_refresh).
+            const session = await resolveSession(request, deps.sb, deps.now(), { beforeRefresh: () => limitIp(ctx, 'refresh', 120, 300) })
             ctx.cookies.push(...session.cookies)
             ctx.user = session.user
             ctx.accessToken = session.accessToken

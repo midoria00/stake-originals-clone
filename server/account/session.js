@@ -28,9 +28,16 @@ function tokenExpiresAt(token) {
     }
 }
 
-const isAuthRejection = (error) => error?.status >= 400 && error.status < 500
+// A 4xx from Supabase Auth means the token is not valid. 429 is the exception: Supabase limits
+// refreshes per IP and every call comes from Vercel's few addresses, so a 429 says nothing about this
+// session. Treating it as invalid would clear the cookies and sign out every player whose access token
+// expired while someone else exhausted that shared budget. Like a 5xx, it is answered with 503 and the
+// cookies stay.
+const isAuthRejection = (error) => error?.status >= 400 && error.status < 500 && error.status !== 429
 
-export async function resolveSession(request, sb, now = Date.now()) {
+// beforeRefresh runs before each refresh call to Supabase (the API passes a per-IP limit there):
+// anonymous requests with a made-up refresh cookie must not spend the shared Supabase budget at will.
+export async function resolveSession(request, sb, now = Date.now(), { beforeRefresh } = {}) {
     const cookies = parseCookies(request)
     const access = cookies[ACCESS_COOKIE]
     const refresh = cookies[REFRESH_COOKIE]
@@ -43,16 +50,17 @@ export async function resolveSession(request, sb, now = Date.now()) {
                 if (!isAuthRejection(error)) throw error
             }
         }
-        if (refresh) {
-            try {
-                const session = await sb.auth.refresh(refresh)
-                return { user: session.user, accessToken: session.access_token, cookies: sessionCookies(session) }
-            } catch (error) {
-                if (!isAuthRejection(error)) throw error
-            }
-        }
     } catch {
         throw new ApiError(503, 'auth_unavailable')
+    }
+    if (refresh) {
+        if (beforeRefresh) await beforeRefresh()
+        try {
+            const session = await sb.auth.refresh(refresh)
+            return { user: session.user, accessToken: session.access_token, cookies: sessionCookies(session) }
+        } catch (error) {
+            if (!isAuthRejection(error)) throw new ApiError(503, 'auth_unavailable')
+        }
     }
     return { user: null, accessToken: null, cookies: access || refresh ? clearedCookies() : [] }
 }
