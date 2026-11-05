@@ -1,7 +1,7 @@
 import { useRef, useEffect, useMemo, useCallback } from 'react'
 import { Tag, Typography } from 'antd'
 import { t } from '../../i18n'
-import { formatMultiplier, formatNumber } from '../../i18n/format'
+import { formatMultiplier, formatNumber, truncateMultiplier } from '../../i18n/format'
 
 const { Text, Title } = Typography
 
@@ -334,7 +334,7 @@ function GameChart({ phase, multiplier, elapsedTime, countdown }) {
                         fontFamily: "'Inter Variable', 'Inter', -apple-system, sans-serif"
                     }}
                 >
-                    {multiplier.toFixed(2)}
+                    {truncateMultiplier(multiplier).toFixed(2)}
                     <span className="multiplier-suffix">×</span>
                 </Title>
             </div>

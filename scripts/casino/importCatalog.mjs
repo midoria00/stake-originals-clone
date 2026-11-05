@@ -6,13 +6,15 @@
 //   node scripts/casino/importCatalog.mjs --source hub88 --file export.json --authorization "Contrato X, cláusula Y" [--replace]
 //
 // Input: a JSON array (or { "games": [...] }) whose entries use the catalog field names:
-//   provider (registry id or provider name), externalId, name, category, image | { src, avif, webp },
+//   provider (registry id or provider name), externalId, name, category, image | { src, avif, webp }
+//   (images only on hosts recorded in "imageSources"; covers normally come from importImages.mjs),
 //   description, platforms, languages, rtp | { min, max }, volatility, available, demo | demoUrl, addedAt.
 // Feeds with other field names need a mapping step before this script; none is guessed here.
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { dedupeGames, normalizeGame } from '../../server/casino/catalog.js'
+import { imageHosts } from '../../server/casino/images.js'
 import { isSourceId } from '../../server/casino/sources.js'
 
 const CATALOG_PATH = fileURLToPath(new URL('../../server/casino/data/catalog.json', import.meta.url))
@@ -62,8 +64,10 @@ export function mergeCatalog(current, { source, entries, authorization, file, re
     if (!Array.isArray(entries)) throw new Error('O arquivo deve conter uma lista de jogos.')
     const accepted = []
     const rejected = []
+    // Feed images survive only on hosts that already have a recorded image authorization.
+    const hosts = imageHosts(current)
     for (const [position, raw] of entries.entries()) {
-        const { game, error } = normalizeGame(raw, source, now)
+        const { game, error } = normalizeGame(raw, source, now, { imageHosts: hosts })
         if (game) accepted.push(game)
         else rejected.push({ position, error })
     }
@@ -81,7 +85,13 @@ export function mergeCatalog(current, { source, entries, authorization, file, re
         replace,
     }
     return {
-        catalog: { version: 1, generatedAt: now.toISOString(), imports: [...(current.imports ?? []), record].slice(-50), games },
+        catalog: {
+            version: 1,
+            generatedAt: now.toISOString(),
+            imports: [...(current.imports ?? []), record].slice(-50),
+            ...(current.imageSources ? { imageSources: current.imageSources } : {}),
+            games,
+        },
         record,
         rejected,
     }

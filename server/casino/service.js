@@ -6,6 +6,7 @@
 import catalogFile from './data/catalog.json' with { type: 'json' }
 import { isCategory } from './categories.js'
 import { buildIndex, dedupeGames, normalizeGame, queryGames, SORTS } from './catalog.js'
+import { imageHosts, imageSourceList } from './images.js'
 import { IN_HOUSE_PROVIDER, isProviderId, PROVIDERS } from './providers.js'
 import { canLaunchDemo, IntegrationError, isSourceId, launchDemo, SOURCES, sourceStatus } from './sources.js'
 
@@ -17,18 +18,27 @@ export class InputError extends Error {
     }
 }
 
-// Re-validates the stored catalog so a hand-edited file cannot inject unexpected fields.
+// Re-validates the stored catalog so a hand-edited file cannot inject unexpected fields or images
+// from hosts without a recorded authorization.
 export function loadCatalog(file = catalogFile) {
     const games = []
     const rejected = []
+    const hosts = imageHosts(file)
     for (const raw of Array.isArray(file?.games) ? file.games : []) {
         const source = isSourceId(raw?.source) ? raw.source : 'catalog-import'
-        const { game, error } = normalizeGame(raw, source)
+        const { game, error } = normalizeGame(raw, source, undefined, { imageHosts: hosts })
         if (game) games.push(game)
         else rejected.push(error)
     }
     const { games: unique, duplicates } = dedupeGames(games)
-    return { generatedAt: file?.generatedAt ?? null, imports: Array.isArray(file?.imports) ? file.imports : [], games: unique, rejected, duplicates }
+    return {
+        generatedAt: file?.generatedAt ?? null,
+        imports: Array.isArray(file?.imports) ? file.imports : [],
+        imageSources: imageSourceList(file).map(({ id, name, hosts: allowed, authorization, termsUrl, recordedAt }) => ({ id, name: name ?? id, hosts: allowed, authorization, termsUrl: termsUrl ?? null, recordedAt: recordedAt ?? null })),
+        games: unique,
+        rejected,
+        duplicates,
+    }
 }
 
 // The browser never sees official demo URLs or source configuration.

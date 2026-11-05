@@ -1,6 +1,10 @@
 // Demo provider: used when no data provider key is configured. Everything it returns is SIMULATED
 // (fixtures, scores, statistics and odds) and flagged with `simulated: true`; it is deterministic per
 // day, so every visitor sees the same matches and bets settle consistently.
+// With a server secret, what happens in each match is drawn from HMAC-SHA256(secret, match id):
+// the fixtures stay public, but nobody can compute a result before it is played (without one, the
+// public id alone decided it, so account bets could be placed on known results).
+import { createHmac } from 'node:crypto'
 import { describeLeague } from './leagues.js'
 import { describeStatus } from './status.js'
 import { makeMarket, sortMarkets } from './markets.js'
@@ -36,6 +40,23 @@ function seeded(text) {
         let t = Math.imul(a ^ (a >>> 15), 1 | a)
         t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
         return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    }
+}
+
+// 32-bit floats cut from HMAC-SHA256(secret, `${label}:${block}`): unpredictable without the secret,
+// identical on every server instance that has it.
+function keyedStream(secret, label) {
+    let block = 0
+    let bytes = null
+    let offset = 32
+    return () => {
+        if (offset >= 32) {
+            bytes = createHmac('sha256', secret).update(`${label}:${block++}`).digest()
+            offset = 0
+        }
+        const value = bytes.readUInt32BE(offset)
+        offset += 4
+        return value / 4294967296
     }
 }
 
@@ -111,8 +132,8 @@ function schedule(date) {
 
 // ---------- match script (what will happen) ----------
 
-function script(fixture) {
-    const random = seeded(`match:${fixture.id}`)
+function script(fixture, secret) {
+    const random = secret ? keyedStream(secret, `demo-match:${fixture.id}`) : seeded(`match:${fixture.id}`)
     const atkH = rating(fixture.home, 'atk')
     const defH = rating(fixture.home, 'def')
     const atkA = rating(fixture.away, 'atk')
@@ -214,8 +235,8 @@ function buildMarkets(s, state) {
 
 const LEAGUE_ROUND = 'Rodada simulada'
 
-function buildMatch(fixture, now, detail) {
-    const s = script(fixture)
+function buildMatch(fixture, now, detail, secret) {
+    const s = script(fixture, secret)
     const clock = clockAt(fixture.kickoff, now)
     const status = describeStatus(clock.code, clock.elapsed, clock.extra)
     const started = status.phase !== 'scheduled'
@@ -292,12 +313,12 @@ function parseDemoId(id) {
     return match ? { date: `${match[1]}-${match[2]}-${match[3]}`, index: Number(match[4]) } : null
 }
 
-export function createDemoProvider({ now = Date.now } = {}) {
-    const day = (date, t, detail = false) => schedule(date).map((fixture) => buildMatch(fixture, t, detail))
+export function createDemoProvider({ now = Date.now, secret = null } = {}) {
+    const day = (date, t, detail = false) => schedule(date).map((fixture) => buildMatch(fixture, t, detail, secret))
     const find = (id, t, detail) => {
         const parsed = parseDemoId(id)
         const fixture = parsed && schedule(parsed.date)[parsed.index]
-        return fixture ? buildMatch(fixture, t, detail) : null
+        return fixture ? buildMatch(fixture, t, detail, secret) : null
     }
 
     return {

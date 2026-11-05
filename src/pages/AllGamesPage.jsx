@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { CATEGORIES } from '../../server/casino/categories.js'
 import { IN_HOUSE_PROVIDER, PROVIDERS } from '../../server/casino/providers.js'
@@ -19,22 +19,27 @@ export default function AllGamesPage() {
     const [text, setText] = useState(q)
     const list = useGameList({ q, provider, category, sort })
 
-    const update = (changes) => {
-        const next = new URLSearchParams(params)
+    // Functional update: a delayed search must not undo a filter chosen meanwhile.
+    const update = useCallback((changes) => setParams((current) => {
+        const next = new URLSearchParams(current)
         for (const [key, value] of Object.entries(changes)) {
             if (!value || (key === 'ordem' && value === 'featured')) next.delete(key)
             else next.set(key, value)
         }
-        setParams(next, { replace: true })
-    }
+        return next
+    }, { replace: true }), [setParams])
+
+    // The header search can change ?q= while this page is open; typing (with spaces) is kept.
+    useEffect(() => {
+        setText((current) => (current.trim() === q ? current : q))
+    }, [q])
 
     // Search waits for a short pause in typing before asking the server.
     useEffect(() => {
-        if (text === q) return undefined
+        if (text.trim() === q) return undefined
         const timer = setTimeout(() => update({ q: text.trim() }), 300)
         return () => clearTimeout(timer)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [text])
+    }, [text, q, update])
 
     return (
         <Page title={t('casino.allGamesTitle')} subtitle={t('casino.allGamesSubtitle')}>

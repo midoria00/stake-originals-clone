@@ -53,7 +53,7 @@ const isLeagueList = (value) => Array.isArray(value) && value.every((item) => it
 const FAVORITE_GAMES_KEY = '123bet_favorite_games_v1'
 const FAVORITE_LEAGUES_KEY = '123bet_favorite_leagues_v1'
 const RECENT_GAMES_KEY = '123bet_recent_games_v1'
-const MAX_RECENT = 12
+const MAX_RECENT = 24
 
 function useIdList(key) {
     const [ids, setIds] = useStoredState(key, [], isIdList)

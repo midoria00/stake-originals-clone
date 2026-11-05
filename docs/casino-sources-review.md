@@ -1,6 +1,6 @@
 # Fontes públicas para o catálogo de jogos: análise de uso e redistribuição
 
-Verificado em 2026-11-04. Só entram no catálogo público da 123bet dados cuja fonte permite redistribuição. Imagens de terceiros não são usadas em nenhum caso.
+Verificado em 2026-11-04. Só entram no catálogo público da 123bet dados cuja fonte permite redistribuição. Imagens de terceiros só entram com autorização registrada (`imageSources`); em 05/11/2026 nenhuma fonte autorizava. Veja `docs/casino-covers-demos.md`.
 
 ## Resultado
 

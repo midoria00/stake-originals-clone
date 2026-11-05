@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Navigate } from 'react-router-dom'
 import { Coins } from '../brand/Brand'
 import { useFreeCredits } from '../components/Header'
 import Page, { useConfirm } from '../components/Page'
@@ -13,7 +14,13 @@ const tone = (value) => (value > 0 ? 'is-positive' : value < 0 ? 'is-negative' :
 // Money leaving the balance shows as negative; a reset shows the new balance.
 const entrySign = (entry) => (entry.type === 'bet' ? '−' : entry.type === 'reset' || entry.type === 'migration' ? '' : '+')
 
+// Signed-in players have a server wallet; this page is the visitor's browser wallet.
 export default function WalletPage() {
+    const { mode } = useWallet()
+    return mode === 'server' ? <Navigate to="/conta/carteira" replace /> : <VisitorWalletPage />
+}
+
+function VisitorWalletPage() {
     const { balance, history, stats, resetBalance, showToast } = useWallet()
     const addFree = useFreeCredits()
     const confirm = useConfirm()

@@ -43,6 +43,7 @@ export default {
     },
     fairness: {
         title: 'Jogo justo',
+        server: 'Rodada decidida pelo servidor da 123bet; o resultado fica no seu histórico.',
         serverHash: 'Hash da seed do servidor (SHA-256)',
         clientSeed: 'Seed do cliente',
         clientSeedHelp: 'Trocar a seed do cliente reinicia o nonce em 0.',
