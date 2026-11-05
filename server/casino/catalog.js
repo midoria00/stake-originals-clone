@@ -38,6 +38,24 @@ function rtpRange(raw, source) {
     return { min, max, verifiedBy: source }
 }
 
+// Scraped feeds sometimes list a page link ("Play Demo") as if it were a game.
+const PLACEHOLDER_NAME = /^(play\s+)?demo$/i
+
+// Only unambiguous YYYY-MM-DD: Date.parse would read "05.06.2018" as May 6.
+function isoDate(value) {
+    const day = typeof value === 'string' ? value.slice(0, 10) : ''
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null
+    const parsed = new Date(`${day}T00:00:00Z`)
+    return Number.isFinite(parsed.getTime()) && parsed.toISOString().startsWith(day) ? day : null
+}
+
+// Short feature tags; a list holding description fragments (line breaks, long text) is malformed and dropped whole.
+function featureList(list) {
+    if (!Array.isArray(list)) return []
+    if (list.some((f) => typeof f !== 'string' || f.length > 40 || /[\r\n]/.test(f))) return []
+    return [...new Set(list.map((f) => f.trim()).filter(Boolean))].slice(0, 20)
+}
+
 // One feed entry, already mapped to our field names -> normalized game, or { error }.
 export function normalizeGame(raw, source, now = new Date()) {
     if (!raw || typeof raw !== 'object') return { error: 'entrada inválida' }
@@ -46,6 +64,7 @@ export function normalizeGame(raw, source, now = new Date()) {
     const externalId = text(raw.externalId, 80)
     const name = text(raw.name, 120)
     if (!externalId || !name) return { error: 'sem nome ou identificador externo' }
+    if (PLACEHOLDER_NAME.test(name)) return { error: 'nome de página, não de jogo' }
     const image = httpsUrl(raw.image?.src ?? raw.image)
     // Official demo URL as given by the authorized feed; it is kept server-side and only used by launch.
     const demoUrl = httpsUrl(raw.demo?.url ?? raw.demoUrl)
@@ -66,9 +85,9 @@ export function normalizeGame(raw, source, now = new Date()) {
             // Only what the feed documents: RTP and volatility are never estimated here.
             rtp: raw.rtp == null ? null : rtpRange(raw.rtp, source),
             volatility: VOLATILITY.includes(fold(raw.volatility).replace(/\s+/g, '-')) ? fold(raw.volatility).replace(/\s+/g, '-') : null,
-            features: Array.isArray(raw.features) ? [...new Set(raw.features.map((f) => text(f, 30)).filter(Boolean))].slice(0, 12) : [],
-            maxWin: Number.isInteger(raw.maxWin) && raw.maxWin > 0 && raw.maxWin <= 10_000_000 ? raw.maxWin : null,
-            releasedAt: Number.isFinite(Date.parse(raw.releasedAt)) ? new Date(Date.parse(raw.releasedAt)).toISOString().slice(0, 10) : null,
+            features: featureList(raw.features),
+            maxWin: Number.isFinite(raw.maxWin) && raw.maxWin > 0 && raw.maxWin <= 10_000_000 ? raw.maxWin : null,
+            releasedAt: isoDate(raw.releasedAt),
             availability: raw.available === false ? 'unavailable' : 'available',
             // A demo counts only when the feed marks an official demo; launching still needs a configured source.
             demo: { available: demoUrlAllowed, mode: demoUrlAllowed ? 'official' : null, ...(demoUrl ? { url: demoUrl } : {}) },
@@ -78,20 +97,29 @@ export function normalizeGame(raw, source, now = new Date()) {
     }
 }
 
+// Title variants of one game: "Tut's"/"Tut’s", "Six Six Six"/"SixSixSix", "X Slot by Pragmatic Play".
+// Titles with no Latin letters or digits keep their folded form, so they never collapse into one key.
+const titleKey = (name) => fold(name).replace(/\s+slot(\s+by\s+.+)?$/, '').replace(/[^a-z0-9]/g, '') || fold(name)
+
+// An official demo first, then the entry with more documented fields.
+const rank = (game) => (game.demo.available ? 100 : 0)
+    + [game.rtp, game.volatility, game.maxWin, game.releasedAt, game.image, game.description].filter((v) => v != null).length
+    + (game.features.length ? 1 : 0)
+
 // Same game from two sources (or listed twice): keep one, preferring an entry with an official demo.
 export function dedupeGames(games) {
     const kept = new Map()
     const byName = new Map()
     const duplicates = []
     for (const game of games) {
-        const nameKey = `${game.provider}:${fold(game.name)}`
+        const nameKey = `${game.provider}:${titleKey(game.name)}`
         const existing = kept.get(game.id) ?? byName.get(nameKey)
         if (!existing) {
             kept.set(game.id, game)
             byName.set(nameKey, game)
             continue
         }
-        if (!existing.demo.available && game.demo.available) {
+        if (rank(game) > rank(existing)) {
             kept.delete(existing.id)
             kept.set(game.id, game)
             byName.set(nameKey, game)
@@ -140,7 +168,8 @@ const byName = (a, b) => a.name.localeCompare(b.name, 'pt-BR')
 const SORTERS = {
     featured: (a, b) => providerOrder(a) - providerOrder(b) || byName(a, b),
     az: byName,
-    recent: (a, b) => b.addedAt.localeCompare(a.addedAt) || byName(a, b),
+    // Same import moment: newer releases first.
+    recent: (a, b) => b.addedAt.localeCompare(a.addedAt) || (b.releasedAt ?? '').localeCompare(a.releasedAt ?? '') || byName(a, b),
 }
 
 // Built once per catalog version; queries then only filter pre-sorted lists (per provider when possible).
