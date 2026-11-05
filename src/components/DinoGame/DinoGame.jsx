@@ -401,6 +401,7 @@ function DinoGame() {
             obstaclesCleared: cleared,
             multiplier,
             amount: winAmount,
+            profit,
         });
         setGamePhase('cashed_out');
         gamePhaseRef.current = 'cashed_out'; // Immediate sync to prevent GAME_OVER listener from logging a loss
@@ -900,7 +901,7 @@ function DinoGame() {
                                 ) : (
                                     <>
                                         <div className="last-win-multiplier">{formatMultiplier(lastResult.multiplier)}</div>
-                                        <div className="last-win-amount">+<Coins value={lastResult.amount} size={14} /></div>
+                                        <div className="last-win-amount">+<Coins value={lastResult.profit ?? lastResult.amount} size={14} /></div>
                                         <div className="last-win-score">{t('dino.cleared', { count: lastResult.obstaclesCleared })}</div>
                                     </>
                                 )}
