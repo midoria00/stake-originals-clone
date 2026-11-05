@@ -64,6 +64,8 @@ export function createEmulator({ db, serviceKey, anonKey, now = Date.now }) {
         switch (route) {
             case 'POST /auth/v1/signup': {
                 const email = body.email.toLowerCase()
+                // Hosted Auth rejects reserved domains such as example.com (observed on the 123bet project).
+                if (email.endsWith('@invalid.test')) return reply(400, { code: 400, error_code: 'email_address_invalid', msg: 'Email address is invalid' })
                 if (users.has(email)) {
                     // GoTrue with confirmations on: an obfuscated user, no error, no e-mail to the owner.
                     return reply(200, { id: randomUUID(), email, identities: [] })

@@ -344,6 +344,7 @@ export default {
         terms_required: 'Para criar a conta, aceite os Termos de uso e a Política de privacidade.',
         invalid_credentials: 'E-mail ou senha incorretos, ou e-mail ainda não confirmado.',
         signup_failed: 'Não foi possível criar a conta agora.',
+        email_delivery_restricted: 'O envio de e-mails de confirmação ainda está restrito neste ambiente de testes. Tente mais tarde.',
         signup_disabled: 'Novos cadastros estão temporariamente desativados.',
         invalid_link: 'Link inválido ou expirado.',
         reset_failed: 'Não foi possível alterar a senha.',

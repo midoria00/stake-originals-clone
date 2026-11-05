@@ -13,6 +13,30 @@ Situação em 04/11/2026, branch `feature/123bet-contas`.
 
 **Recursos financeiros desativados:** depósitos, compras de créditos, saques, Pix, cartões e qualquer conversão de 123 Coins em dinheiro. Nada disso existe no código. O sandbox não gera cobrança nem crédito.
 
+## Estado do projeto Supabase (05/11/2026)
+
+- **Projeto:** 123bet, ref `iijjfakamstitnputdqg`, região `sa-east-1`, Postgres 17.11, plano Free.
+- **Migrations:** as 4 foram aplicadas com `supabase db push --remote` (CLI 3.0.0), depois de dry-run e autorização. Estão registradas no histórico remoto.
+- **Verificações no banco real:**
+  - 17 tabelas, todas com RLS e 12 políticas;
+  - 63 funções, nenhuma executável por anon ou authenticated, todas com acesso para service_role;
+  - o segredo das rodadas não pode ser lido;
+  - o gatilho de cadastro existe.
+  - `supabase db advisors` aponta apenas a função `rls_auto_enable`, que é do próprio Supabase e não foi alterada.
+- **Auth** (`supabase/config.toml`, enviado com `supabase config push`):
+  - Site URL igual ao alias da prévia da branch e redirecionamentos para as prévias;
+  - confirmação de e-mail ligada;
+  - senha com 10+ caracteres, letras e números;
+  - troca de senha segura;
+  - limites por IP elevados, porque todas as chamadas saem da Vercel.
+- **Modelos de e-mail em pt-BR** (`supabase/templates/`): só podem ser enviados com SMTP próprio. O plano Free com o e-mail padrão recusa a alteração.
+- **Vercel** (somente Preview da branch `feature/123bet-contas`): `SUPABASE_URL`, `SUPABASE_ANON_KEY` (publishable), `SUPABASE_SERVICE_ROLE_KEY` (secret, sensível) e os 3 segredos internos.
+- **Teste de ponta a ponta:** `scripts/accounts/remoteCheck.mjs` contra a prévia e o banco real deu 47 de 47.
+  - Cobre: confirmação, login, logout, CSRF, carteira, os 6 jogos, histórico e isolamento entre usuários pela API e por acesso direto com o token do usuário.
+  - Concorrência: 20 apostas paralelas, mesma chave de idempotência, reveals e saques paralelos, cupom de uso único.
+  - Limpeza: os usuários de teste são apagados pelo fluxo LGPD.
+- **Limite atual do e-mail:** o Supabase rejeita domínios reservados (ex.: example.com). Sem SMTP próprio, o e-mail padrão só entrega para membros do projeto, cerca de 2 por hora.
+
 ## Arquitetura
 
 ```

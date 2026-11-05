@@ -91,6 +91,9 @@ function authError(error, fallback = 'auth_failed') {
     if (code === 'over_email_send_rate_limit' || code === 'over_request_rate_limit' || error.status === 429) return new ApiError(429, 'rate_limited', { retryAfter: 60 })
     if (code === 'signup_disabled') return new ApiError(503, 'signup_disabled')
     if (code === 'same_password') return new ApiError(400, 'same_password')
+    if (code === 'email_address_invalid') return new ApiError(400, 'invalid_email')
+    // Default Supabase e-mail sends only to project members until a custom SMTP is configured.
+    if (code === 'email_address_not_authorized') return new ApiError(503, 'email_delivery_restricted')
     return new ApiError(400, fallback)
 }
 

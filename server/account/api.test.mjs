@@ -113,6 +113,7 @@ describe('sign-up, confirmation and login', () => {
         assert.equal((await c.post('auth/signup', { ...base, passwordConfirm: 'Outra-senha-2026' })).data.error, 'password_mismatch')
         assert.equal((await c.post('auth/signup', { ...base, acceptTerms: false })).data.error, 'terms_required')
         assert.equal((await c.post('auth/signup', { ...base, username: 'a b' })).data.error, 'invalid_username')
+        assert.equal((await c.post('auth/signup', { ...base, email: 'alguem@invalid.test', username: 'dominio_ruim' })).data.error, 'invalid_email')
         assert.equal((await c.post('auth/signup', base)).data.status, 'check_email')
         // Same e-mail again: same answer, no hint that the account exists.
         assert.equal((await c.post('auth/signup', { ...base, username: 'outro_nome' })).data.status, 'check_email')
