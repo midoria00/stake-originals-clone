@@ -21,6 +21,22 @@ test('demo mode is deterministic and labelled as simulated', async () => {
     assert.ok(first.matches.some((m) => m.league.id === '71') && first.matches.some((m) => m.league.id === '2'))
 })
 
+test('with a server secret, simulated results cannot be computed from the public match id', async () => {
+    // The finished results of a day, as the public API shows them once the matches are over.
+    const finalScores = async (env) => {
+        const service = createSportsService({ env, now: () => Date.parse('2026-11-05T23:59:00-03:00') })
+        return (await service.matches(query({ view: 'date', date: TODAY }))).matches.map((m) => `${m.id}:${m.score.home}-${m.score.away}`)
+    }
+    const open = await finalScores({})
+    const keyed = await finalScores({ ACCOUNT_HASH_SECRET: 'a'.repeat(40) })
+    const again = await finalScores({ ACCOUNT_HASH_SECRET: 'a'.repeat(40) })
+    const other = await finalScores({ SPORTS_DEMO_SECRET: 'b'.repeat(40), ACCOUNT_HASH_SECRET: 'a'.repeat(40) })
+    assert.deepEqual(keyed.map((m) => m.split(':')[0]), open.map((m) => m.split(':')[0]), 'same public fixtures')
+    assert.deepEqual(again, keyed, 'every instance with the secret agrees (public API and settlement)')
+    assert.ok(keyed.filter((m, i) => m !== open[i]).length >= keyed.length / 2, 'the public-id script no longer predicts them')
+    assert.ok(other.filter((m, i) => m !== keyed[i]).length >= keyed.length / 2, 'SPORTS_DEMO_SECRET takes precedence')
+})
+
 test('demo matches move through the whole match clock', async () => {
     const service = createSportsService({ env: {}, now: () => NOW })
     const scheduled = (await service.matches(query({ view: 'date', date: TODAY }))).matches.find((m) => m.status.phase === 'scheduled')
