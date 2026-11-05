@@ -20,7 +20,7 @@ export const formatMultiplier = (value) => `${Number(value).toFixed(2)}×`
 
 // A live multiplier cut to 0.01×, the precision the server pays (Crash claims and its clock are
 // floored). Rounding would show 1.15× at 1.146× while the cash out pays 1.14×. The epsilon keeps
-// exact two-decimal values (8.18 is 817.999… × 0.01 in binary) from dropping a cent.
+// exact two-decimal values (1.15 × 100 is 114.999… in binary) from dropping a cent.
 export const truncateMultiplier = (value) => Math.floor(Number(value) * 100 + 1e-9) / 100
 
 export const formatTime = (date) => formatter('dateTime', { hour: '2-digit', minute: '2-digit' }).format(new Date(date))
