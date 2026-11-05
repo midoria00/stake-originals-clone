@@ -103,6 +103,15 @@ export function createEmulator({ db, serviceKey, anonKey, now = Date.now }) {
                     if (body.password === session.user.password) return reply(422, { error_code: 'same_password' })
                     session.user.password = body.password
                 }
+                if (body.email) {
+                    const next = body.email.toLowerCase()
+                    if (users.has(next)) return reply(422, { error_code: 'email_exists' })
+                    // Secure e-mail change: one link to the current address, one to the new one.
+                    session.user.pendingEmail = next
+                    session.user.changeConfirmations = 0
+                    link('email_change', session.user)
+                    link('email_change', { ...session.user, email: next })
+                }
                 return reply(200, publicUser(session.user))
             }
             case 'POST /auth/v1/logout': {
@@ -120,10 +129,19 @@ export function createEmulator({ db, serviceKey, anonKey, now = Date.now }) {
             }
             case 'POST /auth/v1/verify': {
                 const pending = links.get(body.token_hash)
-                const expected = body.type === 'recovery' ? 'recovery' : 'signup'
+                const expected = { recovery: 'recovery', email_change: 'email_change', invite: 'invite' }[body.type] ?? 'signup'
                 if (!pending || pending.type !== expected) return reply(403, { error_code: 'otp_expired', msg: 'Token has expired or is invalid' })
                 links.delete(body.token_hash)
                 const user = userById(pending.userId)
+                if (expected === 'email_change') {
+                    user.changeConfirmations += 1
+                    if (user.changeConfirmations < 2) return reply(200, { msg: 'Confirmation link accepted. Please proceed to confirm link sent to the other email' })
+                    users.delete(user.email)
+                    user.email = user.pendingEmail
+                    users.set(user.email, user)
+                    await db.query('update auth.users set email = $1 where id = $2', [user.email, user.id])
+                    return reply(200, issue(user))
+                }
                 if (!user.confirmedAt) {
                     user.confirmedAt = new Date(now()).toISOString()
                     await db.query('update auth.users set email_confirmed_at = now() where id = $1', [user.id])

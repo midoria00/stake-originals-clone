@@ -206,11 +206,17 @@ const authRoutes = {
         auth: 'public',
         run: async (ctx, body) => {
             await limitIp(ctx, 'confirm', 20, 3600)
-            const session = await sessionFromLink(ctx, body, 'email')
+            // Sign-up / magic-link confirmations, or one side of a (double-confirmed) e-mail change.
+            const type = body.type === 'email_change' ? 'email_change' : 'email'
+            const session = await sessionFromLink(ctx, body, type)
+            if (!session?.access_token) {
+                // First of the two e-mail change confirmations: the other address must confirm too.
+                return { status: 'email_change_pending' }
+            }
             ctx.cookies.push(...sessionCookies(session))
             ctx.userId = session.user.id
-            await audit(ctx, 'auth.email_confirmed')
-            return mePayload(ctx, session.user)
+            await audit(ctx, type === 'email_change' ? 'auth.email_changed' : 'auth.email_confirmed')
+            return { ...(await mePayload(ctx, session.user)), status: type === 'email_change' ? 'email_changed' : 'confirmed' }
         },
     },
     'POST auth/reset': {
@@ -218,7 +224,8 @@ const authRoutes = {
         run: async (ctx, body) => {
             await limitIp(ctx, 'reset', 10, 3600)
             if (body.password !== body.passwordConfirm) v.fail('password_mismatch')
-            const session = await sessionFromLink(ctx, body, 'recovery')
+            // Recovery links, or invitations (the invited person chooses a password here).
+            const session = await sessionFromLink(ctx, body, body.type === 'invite' ? 'invite' : 'recovery')
             const pass = v.password(body.password, { email: session.user.email })
             await ctx.sb.auth.updateUser(session.access_token, { password: pass }).catch((error) => { throw authError(error, 'reset_failed') })
             // Every other session of the account ends with the old password.
@@ -268,6 +275,28 @@ async function sessionFromLink(ctx, body, type) {
 }
 
 const accountRoutes = {
+    // E-mail change: confirmed by the current password, then by links sent to both addresses
+    // (Supabase "secure e-mail change"). Same answer whether or not the new address is in use.
+    'POST account/email': {
+        auth: 'user',
+        run: async (ctx, body) => {
+            await limitUser(ctx, 'email_change', 3, 3600)
+            const next = v.email(body.newEmail)
+            if (next === ctx.user.email?.toLowerCase()) v.fail('same_email')
+            let session
+            try {
+                session = await ctx.sb.auth.signIn({ email: ctx.user.email, password: String(body.password ?? '') })
+            } catch (error) {
+                throw authError(error, 'invalid_credentials')
+            }
+            await ctx.sb.auth.updateUser(session.access_token, { email: next }, `${originOf(ctx.request)}/conta/confirmar`).catch((error) => {
+                if (error instanceof SupabaseError && (error.authCode === 'email_exists' || error.authCode === 'user_already_exists')) return
+                throw authError(error, 'email_change_failed')
+            })
+            await audit(ctx, 'account.email_change_requested')
+            return { status: 'check_email' }
+        },
+    },
     'PATCH account/profile': {
         auth: 'user',
         run: async (ctx, body) => camel(await ctx.rpc('update_profile', { p_user: ctx.userId, p_full_name: v.fullName(body.fullName) })),

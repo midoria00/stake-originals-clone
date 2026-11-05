@@ -69,7 +69,8 @@ export function AuthPage({ mode }) {
 function linkCredentials(location) {
     const query = new URLSearchParams(location.search)
     const hash = new URLSearchParams(location.hash.replace(/^#/, ''))
-    if (query.get('token_hash')) return { tokenHash: query.get('token_hash') }
+    const type = query.get('type') ?? hash.get('type') ?? undefined
+    if (query.get('token_hash')) return { tokenHash: query.get('token_hash'), type }
     if (hash.get('access_token') && hash.get('refresh_token')) {
         return { accessToken: hash.get('access_token'), refreshToken: hash.get('refresh_token'), expiresIn: Number(hash.get('expires_in')) || 3600 }
     }
@@ -90,8 +91,9 @@ export function ConfirmPage() {
         accountApi.confirm(credentials)
             .then((me) => {
                 if (cancelled) return
+                if (me.status === 'email_change_pending') return setState({ phase: 'done', message: t('account.confirm.emailChangePending') })
                 signedIn(me)
-                setState({ phase: 'done', message: t('account.confirm.done') })
+                setState({ phase: 'done', message: t(me.status === 'email_changed' ? 'account.confirm.emailChanged' : 'account.confirm.done') })
                 setTimeout(() => navigate('/conta', { replace: true }), 1200)
             })
             .catch(() => !cancelled && setState({ phase: 'error', message: t('account.confirm.failed') }))
@@ -193,6 +195,7 @@ function AccountOverview() {
                     </div>
                 )}
             </section>
+            <EmailChange currentEmail={user.email} />
             <section className="page-section">
                 <div className="page-section__head"><h2>{t('account.page.quickLinks')}</h2></div>
                 <nav className="account-links" aria-label={t('account.page.quickLinks')}>
@@ -200,6 +203,44 @@ function AccountOverview() {
                 </nav>
             </section>
         </Page>
+    )
+}
+
+// Supabase sends a link to the current and to the new address; both must be opened.
+function EmailChange({ currentEmail }) {
+    const id = useId()
+    const [open, setOpen] = useState(false)
+    const [email, setEmail] = useState('')
+    const [password, setPassword] = useState('')
+    const [sent, setSent] = useState(false)
+    const [state, submit] = useSubmit(async () => {
+        await accountApi.changeEmail({ newEmail: email, password })
+        setSent(true)
+        setPassword('')
+    })
+    return (
+        <section className="panel">
+            <h2>{t('account.page.emailTitle')}</h2>
+            <div className="settings-row">
+                <span>{maskEmail(currentEmail)}</span>
+                {!open && <button type="button" className="button button--ghost button--small" onClick={() => setOpen(true)}>{t('account.page.changeEmail')}</button>}
+            </div>
+            {open && (sent ? <p className="account-success" role="status">{t('account.page.emailChangeSent')}</p> : (
+                <form className="account-form" onSubmit={submit} noValidate>
+                    <label className="field field--wide" htmlFor={`${id}-email`}>
+                        {t('account.page.newEmail')}
+                        <input id={`${id}-email`} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" maxLength={254} required />
+                    </label>
+                    <PasswordField id={`${id}-pw`} label={t('account.security.currentPassword')} value={password} onChange={setPassword} autoComplete="current-password" />
+                    <p className="account-hint">{t('account.page.emailChangeHint')}</p>
+                    {state.error && <p className="form-error" role="alert">{state.error}</p>}
+                    <div className="page__actions">
+                        <button type="submit" className="button button--primary" disabled={state.busy}>{t('account.page.changeEmail')}</button>
+                        <button type="button" className="button button--ghost" onClick={() => setOpen(false)}>{t('account.page.cancel')}</button>
+                    </div>
+                </form>
+            ))}
+        </section>
     )
 }
 

@@ -1,4 +1,38 @@
-<h2>Redefinição de senha da 123bet</h2>
-<p>Recebemos um pedido para criar uma nova senha para esta conta.</p>
-<p><a href="{{ .SiteURL }}/conta/redefinir-senha?token_hash={{ .TokenHash }}&type=recovery">Criar nova senha</a></p>
-<p>O link vale por tempo limitado e só pode ser usado uma vez. Ao trocar a senha, as outras sessões abertas são encerradas. Se você não pediu, ignore esta mensagem: sua senha continua a mesma.</p>
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light only">
+  <title>Crie uma nova senha</title>
+</head>
+<body style="margin:0;padding:0;background:#f1f5f9;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f5f9;">
+    <tr><td align="center" style="padding:24px 12px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;">
+        <tr><td style="padding:28px 32px 4px;">
+          <img src="https://stake-originals-clone-psi.vercel.app/icons/icon-192.png" width="36" height="36" alt="123bet" style="display:inline-block;vertical-align:middle;border:0;border-radius:8px;">
+          <span style="display:inline-block;vertical-align:middle;margin-left:10px;font:800 21px/36px Arial,Helvetica,sans-serif;color:#0b1520;">123bet</span>
+        </td></tr>
+        <tr><td style="padding:16px 32px 0;font:700 20px/1.35 Arial,Helvetica,sans-serif;color:#0b1520;">Crie uma nova senha</td></tr>
+        <tr><td style="padding:12px 32px 0;font:400 15px/1.6 Arial,Helvetica,sans-serif;color:#334155;">Recebemos um pedido para redefinir a senha da sua conta na 123bet.</td></tr>
+          <tr><td style="padding:24px 32px 8px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+              <td bgcolor="#1fd67a" style="border-radius:8px;">
+                <a href="{{ .SiteURL }}/conta/redefinir-senha?token_hash={{ .TokenHash }}&amp;type=recovery" target="_blank" style="display:inline-block;padding:14px 28px;font:700 15px/1 Arial,Helvetica,sans-serif;color:#04140b;text-decoration:none;border-radius:8px;">Criar nova senha</a>
+              </td>
+            </tr></table>
+          </td></tr>
+          <tr><td style="padding:8px 32px 0;font:400 13px/1.6 Arial,Helvetica,sans-serif;color:#64748b;">
+            Se o botão não funcionar, copie e cole este endereço no navegador:<br>
+            <a href="{{ .SiteURL }}/conta/redefinir-senha?token_hash={{ .TokenHash }}&amp;type=recovery" target="_blank" style="color:#0f766e;word-break:break-all;">{{ .SiteURL }}/conta/redefinir-senha?token_hash={{ .TokenHash }}&amp;type=recovery</a>
+          </td></tr>
+        <tr><td style="padding:16px 32px 0;font:400 13px/1.6 Arial,Helvetica,sans-serif;color:#64748b;">O link vale por 1 hora e pode ser usado uma única vez. Ao trocar a senha, as outras sessões abertas são encerradas.</td></tr>
+        <tr><td style="padding:24px 32px 28px;">
+          <div style="border-top:1px solid #e2e8f0;padding-top:16px;font:400 12px/1.6 Arial,Helvetica,sans-serif;color:#94a3b8;">Você recebeu esta mensagem porque alguém pediu a redefinição de senha deste endereço. Se não foi você, ignore esta mensagem: nada muda na sua conta.<br>123bet · simulador com créditos fictícios, sem dinheiro real.</div>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

@@ -68,6 +68,7 @@ export const accountApi = {
     reset: (body) => post('auth/reset', body),
     changePassword: (body) => post('auth/password', body),
     updateProfile: (fullName) => api('PATCH', 'account/profile', { fullName }),
+    changeEmail: (body) => post('account/email', body),
     updateSettings: (settings) => api('PATCH', 'account/settings', settings),
     deleteAccount: (body) => post('account/delete', body),
     wallet: () => get('wallet'),

@@ -70,6 +70,8 @@ export default {
         done: 'E-mail confirmado. Bem-vindo à 123bet!',
         failed: 'Este link é inválido ou expirou. Peça um novo e-mail de confirmação.',
         missingLink: 'Abra esta página pelo link de confirmação enviado ao seu e-mail.',
+        emailChangePending: 'Primeiro link confirmado. Agora abra o link enviado ao outro endereço para concluir a troca de e-mail.',
+        emailChanged: 'E-mail alterado. As próximas mensagens irão para o novo endereço.',
     },
 
     menu: {
@@ -100,6 +102,11 @@ export default {
         cancel: 'Cancelar',
         saved: 'Alterações salvas.',
         quickLinks: 'Atalhos',
+        emailTitle: 'E-mail',
+        changeEmail: 'Alterar e-mail',
+        newEmail: 'Novo e-mail',
+        emailChangeHint: 'Por segurança, enviaremos um link para o e-mail atual e outro para o novo. A troca só vale depois que os dois forem abertos.',
+        emailChangeSent: 'Se o novo endereço puder ser usado, enviamos os links de confirmação para o e-mail atual e para o novo. Abra os dois para concluir.',
     },
 
     wallet: {
@@ -344,6 +351,8 @@ export default {
         terms_required: 'Para criar a conta, aceite os Termos de uso e a Política de privacidade.',
         invalid_credentials: 'E-mail ou senha incorretos, ou e-mail ainda não confirmado.',
         signup_failed: 'Não foi possível criar a conta agora.',
+        same_email: 'Este já é o e-mail da sua conta.',
+        email_change_failed: 'Não foi possível pedir a troca de e-mail agora.',
         email_delivery_restricted: 'O envio de e-mails de confirmação ainda está restrito neste ambiente de testes. Tente mais tarde.',
         signup_disabled: 'Novos cadastros estão temporariamente desativados.',
         invalid_link: 'Link inválido ou expirado.',

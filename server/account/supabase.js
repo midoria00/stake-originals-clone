@@ -43,7 +43,7 @@ export function createSupabase({ url, anonKey, serviceKey, fetch: fetchImpl = gl
             signIn: ({ email, password }) => call('/auth/v1/token', { query: { grant_type: 'password' }, body: { email, password } }),
             refresh: (refreshToken) => call('/auth/v1/token', { query: { grant_type: 'refresh_token' }, body: { refresh_token: refreshToken } }),
             getUser: (accessToken) => call('/auth/v1/user', { method: 'GET', token: accessToken }),
-            updateUser: (accessToken, attributes) => call('/auth/v1/user', { method: 'PUT', token: accessToken, body: attributes }),
+            updateUser: (accessToken, attributes, redirectTo) => call('/auth/v1/user', { method: 'PUT', token: accessToken, body: attributes, query: withRedirect(redirectTo) }),
             logout: (accessToken, scope = 'local') => call('/auth/v1/logout', { token: accessToken, query: { scope } }),
             recover: ({ email, redirectTo }) => call('/auth/v1/recover', { body: { email }, query: withRedirect(redirectTo) }),
             resend: ({ email, redirectTo }) => call('/auth/v1/resend', { body: { type: 'signup', email }, query: withRedirect(redirectTo) }),

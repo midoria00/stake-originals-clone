@@ -174,6 +174,20 @@ describe('sign-up, confirmation and login', () => {
         assert.equal((await other.get('me')).data.user, null)
     })
 
+    test('e-mail change: password first, then links on both addresses', async () => {
+        const { c } = await register('troca@example.com', 'troca_email')
+        assert.equal((await c.post('account/email', { newEmail: 'troca@example.com', password: PASSWORD })).data.error, 'same_email')
+        assert.equal((await c.post('account/email', { newEmail: 'novo-endereco@example.com', password: 'Errada-123456' })).data.error, 'invalid_credentials')
+        assert.equal((await c.post('account/email', { newEmail: 'novo-endereco@example.com', password: PASSWORD })).data.status, 'check_email')
+        const first = await client().post('auth/confirm', { tokenHash: emulator.lastLink('troca@example.com', 'email_change'), type: 'email_change' })
+        assert.equal(first.data.status, 'email_change_pending')
+        const second = await client().post('auth/confirm', { tokenHash: emulator.lastLink('novo-endereco@example.com', 'email_change'), type: 'email_change' })
+        assert.equal(second.data.status, 'email_changed')
+        assert.equal(second.data.user.email, 'novo-endereco@example.com')
+        assert.equal((await client().post('auth/login', { email: 'novo-endereco@example.com', password: PASSWORD })).status, 200)
+        assert.equal((await client().post('auth/login', { email: 'troca@example.com', password: PASSWORD })).data.error, 'invalid_credentials')
+    })
+
     test('password recovery: generic answer, link resets the password and ends old sessions', async () => {
         const { c } = await register('esqueci@example.com', 'esqueci')
         const anon = client()
