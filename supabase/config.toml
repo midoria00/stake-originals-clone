@@ -1,0 +1,37 @@
+# Supabase settings managed from this repository. `supabase config push` (CLI v3) changes only the
+# properties declared here; everything else stays as configured in the dashboard.
+project_id = "iijjfakamstitnputdqg"
+
+[auth]
+# Preview of the accounts branch until production is authorized.
+site_url = "https://stake-originals-clone-git-fea-e54b22-patricks-projects-a81f4b64.vercel.app"
+additional_redirect_urls = [
+    "https://stake-originals-clone-*-patricks-projects-a81f4b64.vercel.app/**",
+    "http://localhost:4174/**",
+    "http://localhost:5173/**",
+]
+enable_signup = true
+# Same policy the API enforces (server/account/validate.js).
+minimum_password_length = 10
+password_requirements = "letters_digits"
+
+[auth.rate_limit]
+# The API calls Auth from Vercel's servers, so these per-IP limits are shared by all players.
+# The API applies its own per-IP and per-e-mail limits first (rate_limit_hit).
+sign_in_sign_ups = 300
+token_refresh = 1800
+token_verifications = 300
+
+[auth.email]
+enable_confirmations = true
+secure_password_change = true
+
+# The pt-BR templates in supabase/templates/ can only be pushed once a custom SMTP provider is
+# configured (Free plan + default e-mail rejects template changes). Until then Supabase's default
+# templates are used; /conta/confirmar and /conta/redefinir-senha accept their links too.
+# [auth.email.template.confirmation]
+# subject = "Confirme sua conta na 123bet"
+# content_path = "./supabase/templates/confirmation.html"
+# [auth.email.template.recovery]
+# subject = "Redefinição de senha da 123bet"
+# content_path = "./supabase/templates/recovery.html"
