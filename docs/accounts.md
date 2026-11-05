@@ -65,7 +65,7 @@ Situação em 04/11/2026, branch `feature/123bet-contas`.
     - Outros: nenhum TXT de verificação, CAA ou curinga.
     - Nada em `auth.blacknow.com.br`.
   - **A delegação não muda:** os registros do Resend entram na zona da Hostinger, só abaixo de `auth`, sem tocar no que existe.
-- **Domínio no Resend:** `auth.blacknow.com.br`, região `sa-east-1`. Rastreamento de cliques e de aberturas desligado, porque o rastreamento reescreveria os links de confirmação.
+- **Domínio no Resend:** `auth.blacknow.com.br`, região `sa-east-1`, **verificado em 05/11/2026** (DKIM, `send` e `rsend`). Rastreamento de cliques e de aberturas desligado, porque o rastreamento reescreveria os links de confirmação.
 - **Registros criados na zona da Hostinger** pelo conector oficial, em 05/11/2026. A atualização foi feita sem sobrescrever (`overwrite=false`), e os registros existentes (`@ A` e `www CNAME`) ficaram intactos:
 
   | Tipo | Nome | Valor |
