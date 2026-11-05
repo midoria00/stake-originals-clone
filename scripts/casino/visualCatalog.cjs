@@ -235,7 +235,8 @@ async function run(browser, width) {
     await first.locator('.game-card__fav').click()
     check(`${tag} star toggles on`, (await first.locator('.game-card__fav').getAttribute('aria-pressed')) === 'true')
     await page.goto(`${BASE}${firstHref}`, { waitUntil: 'domcontentloaded' })
-    await page.waitForSelector('.game-hero')
+    // The reason appears once the launch check answers (a second request).
+    await page.waitForSelector('.game-hero__info h2', { timeout: 15000 })
     const detail = await page.evaluate(() => ({
         title: document.querySelector('h1')?.textContent,
         art: document.querySelector('.game-hero [data-art]')?.getAttribute('data-art'),
