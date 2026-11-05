@@ -867,7 +867,8 @@ function DinoGame() {
 
                         {/* Current Status Card */}
                         {isPlaying && (
-                            <div className="last-win-card current">
+                            // Phones: the collapsed sheet keeps only PULAR!/SACAR; the run card shows when expanded.
+                            <div className="last-win-card current mobile-sheet-secondary">
                                 <div className="last-win-header">
                                     <FireOutlined className="fire-icon" />
                                     <span>{t('dino.currentRun')}</span>

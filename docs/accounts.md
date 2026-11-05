@@ -31,7 +31,8 @@ Situação em 04/11/2026, branch `feature/123bet-contas`.
   - limites por IP elevados, porque todas as chamadas saem da Vercel.
 - **Modelos de e-mail em pt-BR** (`supabase/templates/`, gerados por `scripts/accounts/emailTemplates.mjs`): os 8 estão declarados em `supabase/config.toml`. Seguem pendentes no projeto, porque o Supabase só os aceita com SMTP próprio ligado (ver "E-mail transacional (Resend) e DNS").
 - **Vercel** (somente Preview da branch `feature/123bet-contas`): `SUPABASE_URL`, `SUPABASE_ANON_KEY` (publishable), `SUPABASE_SERVICE_ROLE_KEY` (secret, sensível) e os 3 segredos internos.
-- **Teste de ponta a ponta:** `scripts/accounts/remoteCheck.mjs` contra a prévia e o banco real deu 47 de 47.
+- **Teste de ponta a ponta:** `scripts/accounts/remoteCheck.mjs` contra a prévia e o banco real. Última execução registrada: 63 de 63 na prévia `b0d7a6ed`, em 05/11/2026.
+  - Não foi repetida depois das correções de 05/11: ela exige a chave de serviço, que fica só na Vercel, como variável sensível.
   - Cobre: confirmação, login, logout, CSRF, carteira, os 6 jogos, histórico e isolamento entre usuários pela API e por acesso direto com o token do usuário.
   - Concorrência: 20 apostas paralelas, mesma chave de idempotência, reveals e saques paralelos, cupom de uso único.
   - Limpeza: os usuários de teste são apagados pelo fluxo LGPD.
@@ -65,6 +66,32 @@ Situação em 04/11/2026, branch `feature/123bet-contas`.
   - O script altera só assuntos, conteúdos, os 2 avisos de segurança e, se pedido, o nome do remetente. Nunca lê nem grava credenciais SMTP.
   - `email-templates.test.mjs` confere os 8 arquivos, os links (`token_hash` na query, rota e `type` aceitos pela API), as variáveis do GoTrue e o `config.toml`.
 - **Estado:** pendente. O conector do Resend não estava disponível nesta sessão, e a delegação precisa ser corrigida antes da verificação do domínio.
+
+## Testes visuais do Crash e do Dino (05/11/2026)
+
+- **Como:** `scripts/accounts/visualCrashDino.cjs`, em Chromium com as animações rodando, contra o emulador local (`npm run preview:contas`), nas larguras 1440, 768, 390 e 375 px.
+  - Depois de cada passo, carteira, histórico de rodadas e ledger são lidos de volta pela API.
+- **Crash:**
+  - aposta durante a contagem e no primeiro segundo após abrir a página;
+  - multiplicador subindo na tela;
+  - saque manual pago pelo valor pedido;
+  - derrota com só o débito.
+- **Dino:**
+  - início da corrida;
+  - pulos decididos no servidor;
+  - multiplicador crescendo (1,52× → 2,34×) no painel;
+  - saque e derrota;
+  - botões PULAR!/SACAR sem nada por cima no celular.
+- **Resultado:** 136 de 136 verificações nas 4 larguras, já com o código final do servidor (inclui a revisão de segurança abaixo).
+  - Os quatro saques de teste pedidos em 1,15× foram pagos a 1,15×.
+  - Depois de tirar da gaveta recolhida o cartão da corrida no celular, a repetição em 390 e 375 px deu 68 de 68.
+- **Corrigido a partir desses testes:**
+  - **Crash, servidor:** um saque pedido em 1,15× era pago a 1,14×, porque `Math.floor(1.15 * 100)` dá 114. Isso afetava 4.583 dos 99.901 valores de 1,00× a 1.000,00×.
+  - **Crash, tela:** o multiplicador era arredondado para cima. Agora é truncado como o pagamento.
+  - **Crash:** uma aposta no primeiro segundo após abrir a página era descartada em silêncio.
+  - **Dino no celular:** o campo do valor ficava por cima do botão PULAR! durante a corrida.
+  - **Dino:** o cartão "Última partida" mostrava o valor recebido com sinal de mais (+2,34 numa aposta de 1 a 2,34×). Agora mostra o lucro (+1,34), como o aviso.
+- **Não coberto aqui:** as mesmas telas contra o Supabase hospedado, que exigem uma conta de teste confirmada. As rodadas de Crash e Dino no banco real fazem parte do `remoteCheck.mjs`.
 
 ## Auditoria no banco hospedado (05/11/2026)
 
@@ -161,9 +188,34 @@ Cada movimentação (`wallet_transactions`) tem:
 - Repetir um pulo do Dino podia sortear de novo; agora a requisição leva o passo da rodada.
 - Corrigidos ainda um texto quebrado no cadastro e uma função SQL malformada.
 
+**Revisão independente de 05/11/2026:** uma releitura do código, sem partir da auditoria acima, apontou 7 problemas. Os 5 corrigidos têm teste que falha sem a correção:
+- **Futebol simulado previsível (alto):** sem `API_FOOTBALL_KEY`, gols, escanteios e cartões saíam de um PRNG semeado só com o id público da partida. Dava para calcular o resultado antes do jogo e apostar nele.
+  - Agora vêm de HMAC-SHA256 com segredo do servidor (`SPORTS_DEMO_SECRET` ou `ACCOUNT_HASH_SECRET`).
+  - As partidas continuam públicas, e todas as instâncias com o segredo concordam no resultado.
+  - Apostas abertas em partidas simuladas antes da mudança liquidam pelo novo roteiro.
+  - Na prévia `5a984150`, 25 das 30 partidas simuladas encerradas em 04/11 já não batem com o roteiro calculado pelo id público. As 5 restantes coincidem por acaso, como esperado em placares baixos.
+- **Troca de senha sem a senha atual (médio):** `auth/reset` e `auth/confirm` aceitavam tokens no fragmento da URL vindos de qualquer sessão.
+  - Agora só aceitam sessões abertas por link de e-mail na última hora (claim `amr` do GoTrue).
+  - Uma sessão comum, roubada ou compartilhada, não troca mais a senha sem a atual.
+- **Saída em massa por 429 do Supabase (médio):** um 429 na renovação apagava os cookies. Como o limite do Supabase é por IP e todas as chamadas saem da Vercel, quem gastasse esse limite derrubava as sessões de todos.
+  - Agora 429 e 5xx respondem 503 e mantêm os cookies.
+  - As renovações têm limite de 120 a cada 5 min por IP antes de chegar ao Supabase.
+- **Corrida no Dino (baixo):** cada pedido de pulo sorteava de novo. Pulos paralelos no mesmo passo podiam descartar uma batida.
+  - Agora os sorteios de todos os pulos são feitos ao abrir a rodada e ficam no segredo dela.
+  - Rodadas abertas antes da mudança continuam sorteando por pulo.
+- **Ganhos acima de 1.000.000× (baixo):** o banco recusava o pagamento e a rodada do Dino ficava presa. Agora paga o máximo (1.000.000× a aposta).
+- `crash/watch` passou a ter limite por usuário (120 por minuto).
+
 **Limites conhecidos:**
 - A concorrência foi testada contra PGlite, que serializa as consultas. O comportamento de locks no Postgres real deve ser conferido depois do provisionamento (`npm test` cobre a lógica).
 - Chamadas do servidor ao Supabase Auth saem dos IPs da Vercel: os limites por IP do próprio Supabase valem para todos juntos. Por isso existem os limites por IP e por e-mail na API.
+- **Bônus vira saldo comum sem risco (baixo, aberto):**
+  - As apostas usam primeiro o bônus, mas o pagamento vai para o saldo comum.
+  - Um saque do Dino antes do primeiro pulo, ou uma rodada de Mines sem jogadas fechada ao iniciar outra, devolve a aposta inteira no saldo comum. Esse volume também conta para o cashback.
+  - A correção exige mudar `settle_round` (nova migration no banco hospedado).
+- **Bloqueio de e-mail conhecido (baixo, aberto):** os limites de login (8 a cada 15 min) e de recuperação (3 por hora) por e-mail contam toda tentativa. Quem souber o endereço pode mantê-lo em 429. Contar só falhas é a alternativa.
+- **Login por link (inerente):** um link de confirmação ou de acesso abre a sessão da conta a que pertence, para quem o abrir. Assim, um link preparado por outra pessoa pode colocar alguém, sem perceber, na conta dela (login CSRF). Vale para `token_hash` e para tokens no fragmento; os links valem por 1 hora e uma única vez.
+- **Uma sessão aberta por link na última hora** ainda é aceita por `auth/reset`. A janela é a mesma do link.
 
 ## LGPD
 
