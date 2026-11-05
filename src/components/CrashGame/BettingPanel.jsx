@@ -13,6 +13,7 @@ import {
 } from '@ant-design/icons'
 import { Coins, CoinIcon } from '../../brand/Brand'
 import { t } from '../../i18n'
+import { truncateMultiplier } from '../../i18n/format'
 
 const { Text } = Typography
 
@@ -48,7 +49,7 @@ function BettingPanel({ phase, betPlaced, multiplier, onBet, onCashout, serverMo
             return betPlaced ? t('crash.cancelBet') : t('games.placeBet')
         }
         if (phase === 'running' && betPlaced) {
-            return <>{t('games.cashOut')} <Coins value={betAmount * multiplier} size={14} /></>
+            return <>{t('games.cashOut')} <Coins value={betAmount * truncateMultiplier(multiplier)} size={14} /></>
         }
         return t('games.placeBet')
     }

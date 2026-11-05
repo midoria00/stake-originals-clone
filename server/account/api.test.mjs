@@ -294,6 +294,21 @@ describe('wallet and games', () => {
         assert.equal(watch.data.round.result.crashPoint, 2)
         assert.equal((await player.c.post('games/crash/cashout', { roundId: second.data.round.id })).data.state, 'crashed')
 
+        // A claim is paid at its exact two-decimal value: 1.15 * 100 is 114.999… in binary floating
+        // point and used to be floored to a 1.14x payout.
+        const offsetBefore = offset
+        for (const claim of [1.15, 1.16, 2.3, 4.35]) {
+            offset = 0
+            floats.push(0.9) // 10x
+            const exact = await player.c.post('games/crash/start', { stake: 1, idempotencyKey: key('crash') })
+            offset = 20000 // e^2 = 7.39x on the server clock: above every claim, below the crash point
+            const paid = await player.c.post('games/crash/cashout', { roundId: exact.data.round.id, multiplier: claim })
+            assert.equal(paid.data.state, 'cashed')
+            assert.equal(paid.data.round.result.cashedOutAt, claim)
+            assert.equal(paid.data.round.payout, Math.round(claim * 100))
+        }
+        offset = offsetBefore
+
         floats.push(0.9) // 10x, auto cash out at 1.5x
         const auto = await player.c.post('games/crash/start', { stake: 1, autoCashout: '1,5', idempotencyKey: key('crash') })
         const autoWatch = await player.c.post('games/crash/watch', { roundId: auto.data.round.id })

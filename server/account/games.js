@@ -213,7 +213,9 @@ export async function crashCashout(ctx, body) {
     if (body.multiplier !== undefined) {
         const value = Number(body.multiplier)
         if (!Number.isFinite(value) || value < 1 || value > 1000) fail('invalid_multiplier')
-        claimed = Math.floor(value * 100) / 100
+        // Cut to 0.01x without losing a cent to binary rounding (1.15 * 100 is 114.999…, which
+        // Math.floor made 1.14x); the same epsilon as toBp. The server clock still caps the claim.
+        claimed = Math.floor(value * 100 + 1e-7) / 100
     }
     return crashState(ctx, round, secret, claimed)
 }

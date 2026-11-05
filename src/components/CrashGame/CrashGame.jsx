@@ -602,12 +602,9 @@ function CrashGame() {
         }
     }, [phase, countdown, generateCrashPoint, serverMode, startServerRound])
 
-    // Initial start
-    useEffect(() => {
-        // A resumed server round already owns the screen.
-        const timer = setTimeout(() => { if (!roundIdRef.current) startCountdown() }, 1000)
-        return () => clearTimeout(timer)
-    }, [startCountdown])
+    // The first countdown runs from the initial state (identical to startCountdown()). It used to be
+    // restarted after 1 s, which dropped a bet placed in that second: the button kept saying
+    // "Cancelar aposta" but no round was started for it (server mode) or recorded (visitors).
 
     const handleBet = (amount, autoCashout = null) => {
         const insufficient = () => showToast('error', t('games.insufficientTitle'), t('crash.insufficientBody', { need: formatCoins(amount), have: formatCoins(balance) }))
