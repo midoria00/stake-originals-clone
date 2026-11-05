@@ -23,6 +23,10 @@ create table auth.users (
 create function auth.uid() returns uuid language sql stable as $$
     select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
 $$;
+-- Hosted Supabase defaults observed on the 123bet project (Postgres 17): new tables give anon and
+-- authenticated TRUNCATE/REFERENCES/TRIGGER, and an event-trigger function lives in public.
+alter default privileges in schema public grant truncate, references, trigger on tables to anon, authenticated;
+create function public.rls_auto_enable() returns event_trigger language plpgsql as $$ begin end $$;
 `
 
 export async function createTestDatabase() {

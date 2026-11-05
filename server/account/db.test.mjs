@@ -276,6 +276,9 @@ describe('row level security', () => {
         await rejects(asUser(db, alice, `insert into public.wallet_transactions (user_id, type, amount, balance_after, promo_balance_after, origin) values ('${alice}', 'win', 1, 1, 0, 'dice')`), 'permission denied')
         await rejects(callRpc(db, 'claim_free_credits', { p_user: alice, p_amount: 10000, p_idem: 'rls-attempt-01' }, 'authenticated'), 'permission denied')
         await rejects(callRpc(db, 'account_summary', { p_user: alice }, 'anon'), 'permission denied')
+        await rejects(asUser(db, alice, 'truncate public.wallet_transactions'), 'permission denied')
+        const eventTrigger = await db.query(`select proacl is null as untouched from pg_proc where proname = 'rls_auto_enable'`)
+        assert.equal(eventTrigger.rows[0].untouched, true)
     })
 })
 

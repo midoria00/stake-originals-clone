@@ -50,6 +50,25 @@ grant usage on schema public to service_role;
 grant select, insert, update, delete on all tables in schema public to service_role;
 grant usage, select on all sequences in schema public to service_role;
 
-revoke execute on all functions in schema public from public, anon, authenticated;
-grant execute on all functions in schema public to service_role;
+-- Functions of this schema only: Supabase's own event-trigger function (rls_auto_enable) keeps its
+-- privileges. Trigger functions are not callable directly, so they get no grant.
+do $$
+declare f record;
+begin
+    for f in
+        select p.oid::regprocedure as signature, p.prorettype = 'trigger'::regtype as is_trigger
+          from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+         where n.nspname = 'public' and p.prokind = 'f' and p.prorettype <> 'event_trigger'::regtype
+    loop
+        execute format('revoke execute on function %s from public, anon, authenticated', f.signature);
+        if not f.is_trigger then
+            execute format('grant execute on function %s to service_role', f.signature);
+        end if;
+    end loop;
+end $$;
+
+-- Objects created later in this schema start closed too (Supabase's default gives anon and
+-- authenticated TRUNCATE/REFERENCES/TRIGGER on new tables).
 alter default privileges in schema public revoke execute on functions from public, anon, authenticated;
+alter default privileges in schema public revoke all on tables from anon, authenticated;
+alter default privileges in schema public revoke all on sequences from anon, authenticated;
