@@ -26,6 +26,24 @@ const VerifyPage = lazy(() => import('./pages/VerifyPage'))
 const AboutPage = lazy(() => import('./pages/AboutPage'))
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
+const ProvidersPage = lazy(() => import('./pages/ProvidersPage'))
+const ProviderPage = lazy(() => import('./pages/ProviderPage'))
+const AllGamesPage = lazy(() => import('./pages/AllGamesPage'))
+const GameLaunchPage = lazy(() => import('./pages/GameLaunchPage'))
+const AdminPage = lazy(() => import('./account/AdminConsole'))
+const TermsPage = lazy(() => import('./pages/TermsPage'))
+const accountPage = (name) => lazy(() => import('./account/pages').then((module) => ({ default: module[name] })))
+const AuthPage = accountPage('AuthPage')
+const ConfirmPage = accountPage('ConfirmPage')
+const ResetPage = accountPage('ResetPage')
+const AccountPage = accountPage('AccountPage')
+const AccountWalletPage = accountPage('AccountWalletPage')
+const AddCreditsPage = accountPage('AddCreditsPage')
+const HistoryPage = accountPage('HistoryPage')
+const CouponsPage = accountPage('CouponsPage')
+const CashbackPage = accountPage('CashbackPage')
+const SecurityPage = accountPage('SecurityPage')
+const WithdrawalsPage = accountPage('WithdrawalsPage')
 
 function App() {
     return (
@@ -35,6 +53,11 @@ function App() {
                     <Route path="/" element={<Layout />}>
                         <Route index element={<HomePage />} />
                         <Route path="cassino" element={<CasinoPage />} />
+                        <Route path="cassino/jogos" element={<AllGamesPage />} />
+                        <Route path="cassino/provedores" element={<ProvidersPage />} />
+                        <Route path="cassino/provedores/:slug" element={<ProviderPage />} />
+                        <Route path="cassino/jogo/:id" element={<GameLaunchPage />} />
+                        <Route path="admin" element={<AdminPage />} />
                         <Route path="crash" element={<CrashPage />} />
                         <Route path="plinko" element={<PlinkoPage />} />
                         <Route path="dino" element={<DinoPage />} />
@@ -55,6 +78,21 @@ function App() {
                         <Route path="verificar" element={<VerifyPage />} />
                         <Route path="sobre" element={<AboutPage />} />
                         <Route path="privacidade" element={<PrivacyPage />} />
+                        <Route path="termos" element={<TermsPage />} />
+                        <Route path="entrar" element={<AuthPage mode="login" />} />
+                        <Route path="criar-conta" element={<AuthPage mode="signup" />} />
+                        <Route path="recuperar-senha" element={<AuthPage mode="recover" />} />
+                        <Route path="conta" element={<AccountPage />} />
+                        <Route path="conta/confirmar" element={<ConfirmPage />} />
+                        <Route path="conta/redefinir-senha" element={<ResetPage />} />
+                        <Route path="conta/carteira" element={<AccountWalletPage />} />
+                        <Route path="conta/adicionar-creditos" element={<AddCreditsPage />} />
+                        <Route path="conta/historico" element={<HistoryPage />} />
+                        <Route path="conta/transacoes" element={<Navigate to="/conta/historico?aba=movimentacoes" replace />} />
+                        <Route path="conta/cupons" element={<CouponsPage />} />
+                        <Route path="conta/cashback" element={<CashbackPage />} />
+                        <Route path="conta/seguranca" element={<SecurityPage />} />
+                        <Route path="conta/saques" element={<WithdrawalsPage />} />
                         {/* Links from the previous version */}
                         <Route path="favourites" element={<Navigate to="/favoritos" replace />} />
                         <Route path="recent" element={<Navigate to="/recentes" replace />} />

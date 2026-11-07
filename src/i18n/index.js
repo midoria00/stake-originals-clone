@@ -28,13 +28,16 @@ export function hasKey(key) {
 
 const plurals = new Map()
 
+const exists = (key) => typeof lookup(DICTIONARIES[locale], key) === 'string' || typeof lookup(ptBR, key) === 'string'
+
 // `count` picks `<key>_one` / `<key>_other` when those exist (Intl plural rules of the locale).
+// Zero uses `<key>_zero`, else the plural: CLDR files pt 0 under "one", but the UI reads "0 jogos".
 export function t(key, params) {
     let resolvedKey = key
     if (params && typeof params.count === 'number') {
         const rules = plurals.get(locale) ?? plurals.set(locale, new Intl.PluralRules(locale)).get(locale)
-        const candidate = `${key}_${rules.select(params.count)}`
-        if (typeof lookup(DICTIONARIES[locale], candidate) === 'string' || typeof lookup(ptBR, candidate) === 'string') resolvedKey = candidate
+        const forms = params.count === 0 ? ['zero', 'other'] : [rules.select(params.count)]
+        resolvedKey = forms.map((form) => `${key}_${form}`).find(exists) ?? key
     }
     const value = lookup(DICTIONARIES[locale], resolvedKey) ?? lookup(ptBR, resolvedKey)
     if (typeof value !== 'string') return key

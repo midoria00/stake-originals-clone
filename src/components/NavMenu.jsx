@@ -1,5 +1,5 @@
 import { Link, NavLink, useLocation } from 'react-router-dom'
-import { BookOpen, CircleHelp, Clock, Dices, House, Info, Lock, Settings, ShieldCheck, Star, Ticket, Trophy, Wallet } from 'lucide-react'
+import { BookOpen, Building2, CircleHelp, Clock, Dices, House, LayoutGrid, Info, Lock, Settings, ShieldCheck, Star, Ticket, Trophy, Wallet } from 'lucide-react'
 import { GAMES } from '../games'
 import { FEATURED_LEAGUES } from '../../server/sports/leagues.js'
 import { t } from '../i18n'
@@ -11,7 +11,9 @@ const SECTIONS = [
         id: 'casino',
         titleKey: 'nav.casino',
         items: [
-            { to: '/cassino', key: 'nav.allGames', Icon: Dices },
+            { to: '/cassino', key: 'nav.lobby', Icon: Dices, end: true },
+            { to: '/cassino/jogos', key: 'nav.allGames', Icon: LayoutGrid },
+            { to: '/cassino/provedores', key: 'nav.providers', Icon: Building2 },
             { to: '/favoritos', key: 'nav.favorites', Icon: Star },
             { to: '/recentes', key: 'nav.recent', Icon: Clock },
             ...GAMES.map((game) => ({ to: game.path, label: game.navLabel, gameId: game.id })),

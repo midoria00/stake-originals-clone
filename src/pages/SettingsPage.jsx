@@ -5,6 +5,7 @@ import { useWallet } from '../context/WalletContext'
 import { t } from '../i18n'
 import { useFavoriteGames, useFavoriteLeagues, useRecentGames } from '../lib/storage'
 import { useBetSlip } from '../sports/BetSlipContext'
+import { AccountSettingsPanel } from '../account/pages'
 
 export default function SettingsPage() {
     const { paletteId, palettes, setPaletteId } = useThemeSettings()
@@ -52,6 +53,8 @@ export default function SettingsPage() {
                     ))}
                 </div>
             </section>
+
+            <AccountSettingsPanel />
 
             <section className="panel" aria-labelledby="settings-language">
                 <h2 id="settings-language">{t('settings.language')}</h2>

@@ -1209,6 +1209,13 @@
         margin-bottom: 0 !important;
     }
 
+    /* During a run the stake and difficulty are locked, and the sticky jump/cash out buttons were
+       drawn over them (the stake field showed on top of PULAR!). The collapsed sheet keeps only the
+       decision; expanding it still shows everything. */
+    .dino-bet-sheet--playing[data-state='collapsed'] .dino-sidebar > .form-group {
+        display: none;
+    }
+
     .dino-bet-sheet .jump-btn,
     .dino-bet-sheet .bet-button {
         min-height: 48px;

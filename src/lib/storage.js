@@ -45,14 +45,15 @@ export function useStoredState(key, fallback, validate) {
     return [value, update]
 }
 
-const isIdList = (value) => Array.isArray(value) && value.every((id) => typeof id === 'string' && id.length <= 40)
+// Originals use short ids ("crash"); catalog games use "provider:externalId".
+const isIdList = (value) => Array.isArray(value) && value.every((id) => typeof id === 'string' && id.length <= 100)
 const isRecentList = (value) => Array.isArray(value) && value.every((item) => item && typeof item.id === 'string' && typeof item.at === 'string')
 const isLeagueList = (value) => Array.isArray(value) && value.every((item) => item && typeof item.id === 'string' && item.id.length <= 40 && typeof item.name === 'string' && item.name.length <= 80)
 
 const FAVORITE_GAMES_KEY = '123bet_favorite_games_v1'
 const FAVORITE_LEAGUES_KEY = '123bet_favorite_leagues_v1'
 const RECENT_GAMES_KEY = '123bet_recent_games_v1'
-const MAX_RECENT = 12
+const MAX_RECENT = 24
 
 function useIdList(key) {
     const [ids, setIds] = useStoredState(key, [], isIdList)

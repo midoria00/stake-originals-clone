@@ -8,6 +8,12 @@ export default function PrivacyPage() {
             <section className="panel">
                 <p>{t('pages.privacy.intro')}</p>
             </section>
+            <section className="panel" aria-labelledby="privacy-account">
+                <h2 id="privacy-account">{t('account.legal.privacyTitle')}</h2>
+                {tRaw('account.legal.privacy').map((item) => (
+                    <p key={item.title}><strong>{item.title}.</strong> {item.body}</p>
+                ))}
+            </section>
             <section className="panel" aria-labelledby="privacy-storage">
                 <h2 id="privacy-storage">{t('pages.privacy.storageTitle')}</h2>
                 <p>{t('pages.privacy.storageIntro')}</p>

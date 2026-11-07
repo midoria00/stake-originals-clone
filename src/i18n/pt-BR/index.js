@@ -13,5 +13,7 @@ import dino from './dino.js'
 import dice from './dice.js'
 import limbo from './limbo.js'
 import settings from './settings.js'
+import casino from './casino.js'
+import account from './account.js'
 
-export default { common, nav, wallet, home, pages, settings, sports, games, crash, plinko, mines, dino, dice, limbo }
+export default { common, nav, wallet, home, pages, settings, casino, account, sports, games, crash, plinko, mines, dino, dice, limbo }

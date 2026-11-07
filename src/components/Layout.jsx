@@ -6,6 +6,7 @@ import { t } from '../i18n'
 import { recordRecentGame, useStoredState } from '../lib/storage'
 import { BetSlipProvider } from '../sports/BetSlipContext'
 import { MigrationNotice, PageSkeleton, RouteErrorBoundary, Toasts } from './AppFrame'
+import { AuthModal, SessionExpiredNotice } from '../account/components'
 import Header from './Header'
 import MobileNavigation from './MobileNavigation'
 import Sidebar from './Sidebar'
@@ -15,7 +16,23 @@ import '../styles/layout.css'
 const BetSlip = lazy(() => import('../sports/BetSlip'))
 
 const PAGE_TITLES = {
+    '/cassino/jogos': 'nav.allGames',
+    '/cassino/provedores': 'nav.providers',
+    '/cassino/jogo': 'nav.casino',
     '/cassino': 'nav.casino',
+    '/admin': 'account.admin.title',
+    '/conta/carteira': 'account.menu.wallet',
+    '/conta/adicionar-creditos': 'account.menu.addCredits',
+    '/conta/historico': 'account.menu.history',
+    '/conta/cupons': 'account.menu.coupons',
+    '/conta/cashback': 'account.menu.cashback',
+    '/conta/seguranca': 'account.menu.security',
+    '/conta/saques': 'account.withdrawals.title',
+    '/conta': 'account.menu.account',
+    '/entrar': 'account.signIn',
+    '/criar-conta': 'account.signUp',
+    '/recuperar-senha': 'account.recover.title',
+    '/termos': 'account.legal.termsTitle',
     '/sports': 'nav.sports',
     '/favoritos': 'nav.favorites',
     '/recentes': 'nav.recent',
@@ -59,6 +76,7 @@ function Layout() {
                 <div className="app-main-wrapper">
                     <Header menuOpen={menuOpen} menuButtonRef={menuButtonRef} onMenuClick={() => setMenuOpen(true)} />
                     <MigrationNotice />
+                    <SessionExpiredNotice />
                     <main id="main" className="main-content" tabIndex={-1}>
                         <RouteErrorBoundary key={pathname}>
                             <Suspense fallback={<PageSkeleton />}>
@@ -82,6 +100,7 @@ function Layout() {
                     </Suspense>
                 </Drawer>
                 <Toasts />
+                <AuthModal />
             </div>
         </BetSlipProvider>
     )
