@@ -1,26 +1,21 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search } from 'lucide-react'
+import { LayoutGrid, Search } from 'lucide-react'
 import { GAMES } from '../games'
 import { t } from '../i18n'
 import { FootballIcon, GameIcon } from './icons'
 
 const normalize = (text) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
 
-// Combobox: games match locally as you type; any text can also search teams in the football list.
+// Combobox: Originals match locally as you type; any text can also open the catalog search (all
+// provider games, searched on the server by that page) or search teams in the football list.
 export default function SearchBox({ onDone, autoFocus = false }) {
     const navigate = useNavigate()
     const [text, setText] = useState('')
-    const [query, setQuery] = useState('')
     const [open, setOpen] = useState(false)
     const [active, setActive] = useState(0)
     const listId = useId()
     const rootRef = useRef(null)
-
-    useEffect(() => {
-        const timer = setTimeout(() => setQuery(text), 120)
-        return () => clearTimeout(timer)
-    }, [text])
 
     useEffect(() => {
         const close = (event) => rootRef.current && !rootRef.current.contains(event.target) && setOpen(false)
@@ -28,12 +23,20 @@ export default function SearchBox({ onDone, autoFocus = false }) {
         return () => document.removeEventListener('pointerdown', close)
     }, [])
 
+    // Built from the text as typed (six local games, no request), so Enter or a click right after
+    // typing never picks an option of an older query.
+    const query = text
     const options = useMemo(() => {
         const q = normalize(query)
         if (!q) return []
         const games = GAMES.filter((game) => normalize(`${game.name} ${game.navLabel}`).includes(q))
             .map((game) => ({ id: game.id, label: game.navLabel, to: game.path, kind: 'game' }))
-        return [...games, { id: 'teams', label: t('home.searchTeams', { query: query.trim() }), to: `/sports?q=${encodeURIComponent(query.trim())}`, kind: 'teams' }]
+        const term = encodeURIComponent(query.trim())
+        return [
+            ...games,
+            { id: 'catalog', label: t('home.searchCatalog', { query: query.trim() }), to: `/cassino/jogos?q=${term}`, kind: 'catalog' },
+            { id: 'teams', label: t('home.searchTeams', { query: query.trim() }), to: `/sports?q=${term}`, kind: 'teams' },
+        ]
     }, [query])
 
     const go = (option) => {
@@ -96,7 +99,9 @@ export default function SearchBox({ onDone, autoFocus = false }) {
                             onPointerDown={(event) => event.preventDefault()}
                             onClick={() => go(option)}
                         >
-                            {option.kind === 'game' ? <GameIcon id={option.id} size={16} /> : <FootballIcon size={16} />}
+                            {option.kind === 'game' && <GameIcon id={option.id} size={16} />}
+                            {option.kind === 'catalog' && <LayoutGrid size={16} aria-hidden="true" />}
+                            {option.kind === 'teams' && <FootballIcon size={16} />}
                             <span>{option.label}</span>
                         </li>
                     ))}

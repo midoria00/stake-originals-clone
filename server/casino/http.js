@@ -26,8 +26,10 @@ const json = (body, status, headers = {}) => new Response(JSON.stringify(body), 
     headers: { 'Content-Type': 'application/json; charset=utf-8', 'X-Robots-Tag': 'noindex', ...headers },
 })
 
-// Catalog data changes only with a deploy or an import, so the CDN can share it for minutes.
+// Catalog data changes only with a deploy or an import, so the CDN can share it for minutes and
+// the browser reuses a page for a minute (going back to a list or a game makes no request).
 const CACHE = { providers: 300, games: 300 }
+const BROWSER_MAX_AGE = 60
 
 export async function handle(request, kind, service = (defaultService ??= createCasinoService())) {
     if (rateLimited(request)) return json({ error: 'Muitas requisições. Aguarde um minuto.' }, 429, { 'Cache-Control': 'no-store', 'Retry-After': '60' })
@@ -35,7 +37,7 @@ export async function handle(request, kind, service = (defaultService ??= create
     try {
         const body = kind === 'providers' ? service.providers() : kind === 'games' ? service.games(params) : service.launch(params)
         const maxAge = CACHE[kind]
-        return json(body, 200, { 'Cache-Control': maxAge ? `public, max-age=0, s-maxage=${maxAge}, stale-while-revalidate=${maxAge * 2}` : 'no-store' })
+        return json(body, 200, { 'Cache-Control': maxAge ? `public, max-age=${BROWSER_MAX_AGE}, s-maxage=${maxAge}, stale-while-revalidate=${maxAge * 2}` : 'no-store' })
     } catch (error) {
         const status = error.status ?? 500
         if (status >= 500) console.error('[casino]', error.message)

@@ -39,6 +39,7 @@ import { DEFAULT_BALANCE, getBinColors, BIN_PAYOUTS } from './constants';
 import { dropPlinkoBall } from './dropPlinkoBall';
 import { ProvablyFair } from '../../utils/ProvablyFair';
 import { useWallet } from '../../context/WalletContext';
+import { errorMessage, gameApi } from '../../account/api';
 import { Coins, Logo } from '../../brand/Brand';
 import { t } from '../../i18n';
 import { formatNumber } from '../../i18n/format';
@@ -104,7 +105,7 @@ const AVAILABLE_BALL_TYPES = { normal: BALL_TYPES.normal };
 
 function PlinkoGame() {
     // Shared Wallet
-    const { balance, placeBet, addWinnings, showToast } = useWallet()
+    const { balance, mode, placeBet, addWinnings, syncWallet, showToast } = useWallet()
     // State
     const [betAmount, setBetAmount] = useState(1);
     const [rowCount, setRowCount] = useState(16);
@@ -419,12 +420,12 @@ function PlinkoGame() {
 
     // Update debug info whenever ready or after a drop
     useEffect(() => {
-        if (isDebugMode && provablyFair) {
+        if (isDebugMode && provablyFair && mode === 'local') {
             provablyFair.peekPlinkoPath(rowCount).then(res => {
                 setDebugData(res);
             });
         }
-    }, [isDebugMode, rowCount, provablyFair, winRecords]);
+    }, [isDebugMode, rowCount, provablyFair, winRecords, mode]);
 
     // Drop ball
     const handleDropBall = useCallback(async (isCancelled) => {
@@ -439,11 +440,21 @@ function PlinkoGame() {
             currentBall,
             selectedBallType,
             placeBet: (amount) => placeBet(amount, 'plinko'),
+            serverPlay: mode === 'server' ? async () => {
+                try {
+                    const { round, wallet } = await gameApi.plinko({ stake: betAmount, rows: rowCount, risk: riskLevel });
+                    syncWallet(wallet);
+                    return round.result.binIndex;
+                } catch (error) {
+                    showToast('error', t('plinko.insufficientTitle'), errorMessage(error));
+                    throw error;
+                }
+            } : undefined,
             isCancelled,
         });
-        if (result === 'insufficient-funds') showToast('error', t('plinko.insufficientTitle'), t('plinko.insufficientBody'));
+        if (result === 'insufficient-funds' && mode === 'local') showToast('error', t('plinko.insufficientTitle'), t('plinko.insufficientBody'));
         return result;
-    }, [currentBall, rowCount, provablyFair, selectedBallType, betAmount, placeBet, showToast]);
+    }, [currentBall, rowCount, riskLevel, provablyFair, selectedBallType, betAmount, placeBet, showToast, mode, syncWallet]);
 
     // Fullscreen toggle
     const toggleFullscreen = useCallback(() => {
@@ -503,7 +514,7 @@ function PlinkoGame() {
                         />
 
                         {/* Debug Overlay */}
-                        {isDebugMode && debugData && (
+                        {isDebugMode && debugData && mode === 'local' && (
                             <div className="fixed-widget debug-widget fade-in-scale" ref={debugWidgetRef}>
                                 <div className="widget-header debug-widget-header" onMouseDown={handleDebugDragStart}>
                                     <div className="widget-title">
@@ -821,8 +832,10 @@ function PlinkoGame() {
                         <CheckCircleOutlined style={{ marginRight: 8 }} />
                         {t('plinko.fairness.headline')}
                     </Title>
+                    {mode === 'server' ? <Paragraph>{t('plinko.fairness.server')}</Paragraph> : <>
                     <Paragraph>{t('plinko.fairness.body')}</Paragraph>
                     <Paragraph type="secondary">{t('plinko.fairness.notVerifiable')}</Paragraph>
+                    </>}
                 </div>
 
                 <div className="fairness-item">

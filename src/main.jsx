@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { ConfigProvider } from 'antd'
 import { ThemeProvider, useThemeSettings } from './context/ThemeContext'
 import { WalletProvider } from './context/WalletContext'
+import { AuthProvider } from './account/AuthContext'
 import App from './App'
 // Self-hosted fonts (OFL): no render-blocking request to Google and no visitor IP sent to a third party.
 import '@fontsource-variable/inter'
@@ -16,9 +17,11 @@ function ThemedApp() {
     return (
         <ConfigProvider theme={antdTheme}>
             <BrowserRouter>
-                <WalletProvider>
-                    <App />
-                </WalletProvider>
+                <AuthProvider>
+                    <WalletProvider>
+                        <App />
+                    </WalletProvider>
+                </AuthProvider>
             </BrowserRouter>
         </ConfigProvider>
     )

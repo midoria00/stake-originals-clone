@@ -57,6 +57,7 @@ export default {
         title: 'Como o resultado é gerado',
         headline: 'Caminho calculado por semente',
         body: 'Cada bola segue um caminho calculado com HMAC-SHA256 a partir de uma semente do servidor, da semente do cliente e de um contador.',
+        server: 'Rodada decidida pelo servidor da 123bet; o resultado fica no seu histórico.',
         notVerifiable: 'Nesta versão a semente do servidor não é revelada, então as rodadas do Plinko ainda não podem ser verificadas.',
         game: 'Jogo',
         drops: 'Bolas soltas',

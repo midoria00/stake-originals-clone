@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Star } from 'lucide-react'
 import { getProvider } from '../../server/casino/providers.js'
 import { t } from '../i18n'
 import { useFavoriteGames } from '../lib/storage'
+import { PAGE } from './api'
 import '../components/GameCard.css'
 import './casino.css'
 
@@ -38,15 +39,41 @@ export function ProviderGrid({ providers, rows }) {
     )
 }
 
-const initials = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join('').toUpperCase()
+const initials = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => [...word][0]).join('').toUpperCase()
 
-function GameArt({ game }) {
-    if (!game.image?.src) return <span className="catalog-card__placeholder" aria-hidden="true">{initials(game.name)}</span>
+// Cards without an authorized cover get a tinted panel with the initials: clearly a placeholder,
+// never a picture presented as the game's art. The tint only separates providers at a glance.
+const PROVIDER_HUES = { 'pg-soft': 16, 'pragmatic-play': 38, 'hacksaw-gaming': 196, bgaming: 268, 'booming-games': 330, habanero: 148, 'tada-gaming': 52, '123bet': 210 }
+const providerHue = (provider) => PROVIDER_HUES[provider] ?? [...provider].reduce((hue, char) => (hue * 31 + char.charCodeAt(0)) % 360, 7)
+
+function ArtFallback({ game }) {
     return (
-        <picture>
-            {game.image.avif && <source srcSet={game.image.avif} type="image/avif" />}
-            {game.image.webp && <source srcSet={game.image.webp} type="image/webp" />}
-            <img src={game.image.src} alt="" width="320" height="400" loading="lazy" decoding="async" />
+        <span className="catalog-art-fallback" style={{ '--art-hue': providerHue(game.provider) }} data-art="fallback" aria-hidden="true">
+            <span className="catalog-art-fallback__initials">{initials(game.name)}</span>
+        </span>
+    )
+}
+
+// Authorized cover (AVIF/WebP when offered), lazy and with a fixed box so nothing shifts while it
+// loads; a broken or missing file falls back to the placeholder.
+export function GameArt({ game, eager = false }) {
+    const [failed, setFailed] = useState(false)
+    const image = game.image
+    if (!image?.src || failed) return <ArtFallback game={game} />
+    return (
+        <picture data-art="cover">
+            {image.avif && <source srcSet={image.avif} type="image/avif" />}
+            {image.webp && <source srcSet={image.webp} type="image/webp" />}
+            <img
+                src={image.src}
+                alt=""
+                width={image.width ?? 320}
+                height={image.height ?? 400}
+                loading={eager ? 'eager' : 'lazy'}
+                decoding="async"
+                fetchpriority={eager ? 'high' : undefined}
+                onError={() => setFailed(true)}
+            />
         </picture>
     )
 }
@@ -65,10 +92,9 @@ function badge(game) {
     return { text: t('casino.catalogOnlyBadge'), tone: 'muted' }
 }
 
-export function CatalogGameCard({ game }) {
-    const favorites = useFavoriteGames()
-    const id = favoriteId(game)
-    const favorite = favorites.has(id)
+// Memoized: the grid owns the favourites subscription, so toggling one star re-renders one card
+// instead of every card on the page (up to the whole catalog after scrolling).
+export const CatalogGameCard = memo(function CatalogGameCard({ game, favorite, onToggleFavorite, meta }) {
     const tag = badge(game)
     const providerName = getProvider(game.provider)?.name ?? game.provider
     return (
@@ -76,8 +102,8 @@ export function CatalogGameCard({ game }) {
             <Link to={gameHref(game)} className="catalog-card__link">
                 <span className="catalog-card__art"><GameArt game={game} /></span>
                 <span className="catalog-card__body">
-                    <span className="catalog-card__name">{game.name}</span>
-                    <span className="catalog-card__meta">{providerName} · {t(`casino.categories.${game.category}`)}</span>
+                    <span className="catalog-card__name" title={game.name}>{game.name}</span>
+                    <span className="catalog-card__meta">{meta ?? `${providerName} · ${t(`casino.categories.${game.category}`)}`}</span>
                 </span>
             </Link>
             <span className={`catalog-card__badge is-${tag.tone}`}>{tag.text}</span>
@@ -87,11 +113,26 @@ export function CatalogGameCard({ game }) {
                 aria-pressed={favorite}
                 aria-label={`${favorite ? t('common.unfavorite') : t('common.favorite')}: ${game.name}`}
                 title={favorite ? t('common.unfavorite') : t('common.favorite')}
-                onClick={() => favorites.toggle(id)}
+                onClick={() => onToggleFavorite(favoriteId(game))}
             >
                 <Star size={16} aria-hidden="true" fill={favorite ? 'currentColor' : 'none'} />
             </button>
         </article>
+    )
+})
+
+// Same structure and box as a card, so swapping skeletons for cards moves nothing.
+function CardSkeleton() {
+    return (
+        <span className="catalog-card catalog-card--skeleton" aria-hidden="true">
+            <span className="catalog-card__link">
+                <span className="catalog-card__art skeleton" />
+                <span className="catalog-card__body">
+                    <span className="catalog-card__name"><span className="skeleton catalog-card__bar">&nbsp;</span></span>
+                    <span className="catalog-card__meta"><span className="skeleton catalog-card__bar catalog-card__bar--short">&nbsp;</span></span>
+                </span>
+            </span>
+        </span>
     )
 }
 
@@ -106,8 +147,19 @@ function Sentinel({ onVisible, active }) {
     return <div ref={ref} className="catalog-sentinel" aria-hidden="true" />
 }
 
+// While a page loads, reserve exactly the cards it will bring (the total is known after the first
+// page), so the arriving cards replace skeletons one for one and nothing below them jumps.
+const pendingCards = (list) => {
+    if (!list.loading) return 0
+    if (list.total === null || !list.items.length) return 8
+    return Math.max(0, Math.min(PAGE, list.total - list.items.length))
+}
+
 // Paged grid: skeletons on the first page, then automatic loading near the end plus a manual button.
-export function CatalogGrid({ list, emptyText }) {
+// `metaFor(game)` replaces the provider line (e.g. "opened at" on Recentes).
+export function CatalogGrid({ list, emptyText, metaFor }) {
+    const favorites = useFavoriteGames()
+    const favoriteIds = useMemo(() => new Set(favorites.ids), [favorites.ids])
     if (list.error && !list.items.length) {
         return (
             <div className="state-panel state-panel--error" role="alert">
@@ -120,17 +172,20 @@ export function CatalogGrid({ list, emptyText }) {
     return (
         <>
             <div className="catalog-grid" aria-busy={list.loading}>
-                {list.items.map((game) => <CatalogGameCard key={game.id} game={game} />)}
-                {list.loading && Array.from({ length: list.items.length ? 4 : 8 }, (_, index) => <span key={`s${index}`} className="skeleton catalog-skeleton" aria-hidden="true" />)}
+                {list.items.map((game) => (
+                    <CatalogGameCard key={game.id} game={game} favorite={favoriteIds.has(favoriteId(game))} onToggleFavorite={favorites.toggle} meta={metaFor?.(game)} />
+                ))}
+                {Array.from({ length: pendingCards(list) }, (_, index) => <CardSkeleton key={`s${index}`} />)}
             </div>
-            {list.hasMore && (
+            {/* Hidden while a page loads: the reserved skeletons take its place, so the button is not
+                pushed down in view (a layout shift); it comes back after the cards. */}
+            {list.hasMore && !list.loading && (
                 <div className="catalog-more">
-                    <Sentinel onVisible={list.loadMore} active={!list.loading} />
-                    <button type="button" className="button button--ghost" onClick={list.loadMore} disabled={list.loading}>
-                        {list.loading ? t('casino.loadingMore') : t('casino.loadMore')}
-                    </button>
+                    <Sentinel onVisible={list.loadMore} active />
+                    <button type="button" className="button button--ghost" onClick={list.loadMore}>{t('casino.loadMore')}</button>
                 </div>
             )}
+            {list.loading && list.items.length > 0 && <p className="visually-hidden" role="status">{t('casino.loadingMore')}</p>}
             {list.error && list.items.length > 0 && <p className="form-error" role="alert">{list.error.message}</p>}
         </>
     )

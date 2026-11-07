@@ -43,12 +43,20 @@ export function useGameList({ skip = false, ...params }) {
     const key = skip ? null : JSON.stringify(params)
     const [state, setState] = useState({ items: [], total: null, nextCursor: 0, loading: true, error: null })
     const controllerRef = useRef(null)
+    // Page being fetched for the current list: a second trigger before React re-renders (the
+    // scroll sentinel and the button, or two observer callbacks) must not abort and refetch it.
+    const pendingRef = useRef(null)
 
     const load = useCallback(async (cursor, reset) => {
+        if (!reset && pendingRef.current === cursor) return
         controllerRef.current?.abort()
-        if (key === null) return setState({ items: [], total: 0, nextCursor: null, loading: false, error: null })
+        if (key === null) {
+            pendingRef.current = null
+            return setState({ items: [], total: 0, nextCursor: null, loading: false, error: null })
+        }
         const controller = new AbortController()
         controllerRef.current = controller
+        pendingRef.current = cursor
         setState((previous) => ({ ...(reset ? { items: [], total: null } : previous), nextCursor: cursor, loading: true, error: null }))
         try {
             const data = await fetchGames({ ...JSON.parse(key), cursor, limit: PAGE }, controller.signal)
@@ -61,12 +69,17 @@ export function useGameList({ skip = false, ...params }) {
             }))
         } catch (error) {
             if (error.name !== 'AbortError') setState((previous) => ({ ...previous, loading: false, error }))
+        } finally {
+            if (controllerRef.current === controller) pendingRef.current = null
         }
     }, [key])
 
     useEffect(() => {
         load(0, true)
-        return () => controllerRef.current?.abort()
+        return () => {
+            controllerRef.current?.abort()
+            pendingRef.current = null
+        }
     }, [load])
 
     const { nextCursor, loading } = state

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import MobileBetSheet from '../../components/MobileBetSheet'
 import { Coins, CoinIcon } from '../../brand/Brand'
 import { useWallet } from '../../context/WalletContext'
+import { centsToCoins, errorMessage, gameApi } from '../../account/api'
 import ProvablyFair from '../../utils/ProvablyFair'
 import { t } from '../../i18n'
 import { formatCoins, formatNumber, formatPercent } from '../../i18n/format'
@@ -23,7 +24,7 @@ const toInput = (value) => value.toFixed(2).replace('.', ',')
 
 // Shared by Dice and Limbo: stake, wallet, fair random source, history and the debit -> reveal -> credit flow.
 export function useOriginalsRound({ ns, source }) {
-    const { balance, placeBet, addWinnings, showToast } = useWallet()
+    const { balance, mode, placeBet, addWinnings, syncWallet, showToast } = useWallet()
     const pfRef = useRef(null)
     if (!pfRef.current) pfRef.current = new ProvablyFair()
     const busyRef = useRef(false)
@@ -45,7 +46,8 @@ export function useOriginalsRound({ ns, source }) {
     }
 
     // resolve(r, stakeValue) -> { win, payout, ... } (pure); reveal(outcome) animates; describe(outcome) -> { chip, text }.
-    const run = async ({ validate, resolve, reveal, describe }) => {
+    // server(stakeValue) -> API promise and fromServer(round, payoutCoins) -> outcome are used instead of resolve when signed in.
+    const run = async ({ validate, resolve, server, fromServer, reveal, describe }) => {
         if (busyRef.current) return
         const checked = validateStake(stake, balance)
         if (!checked.ok) return setError(errorText(checked.code))
@@ -56,6 +58,24 @@ export function useOriginalsRound({ ns, source }) {
         setError('')
         let refundable = false
         try {
+            if (mode === 'server') {
+                let outcome
+                try {
+                    const response = await server(checked.value)
+                    syncWallet(response.wallet)
+                    outcome = fromServer(response.round, centsToCoins(response.round.payout))
+                } catch (e) {
+                    const message = errorMessage(e)
+                    setError(message)
+                    return showToast('error', t(`${ns}.errorTitle`), message)
+                }
+                await reveal(outcome)
+                const { chip, text } = describe(outcome)
+                setHistory((items) => [{ id: `${Date.now()}-${Math.random()}`, win: outcome.win, chip }, ...items].slice(0, MAX_HISTORY))
+                setAnnounce(text)
+                showToast(outcome.win ? 'win' : 'loss', t(`${ns}.${outcome.win ? 'winTitle' : 'lossTitle'}`), text)
+                return
+            }
             if (!placeBet(checked.value, source)) return setError(errorText('rejected'))
             refundable = true
             const r = await pfRef.current.getResult()
@@ -78,7 +98,7 @@ export function useOriginalsRound({ ns, source }) {
         }
     }
 
-    return { balance, pf: pfRef.current, busy, stake, setStake, adjustStake, error, setError, errorText, announce, history, fairVersion, run }
+    return { balance, mode, pf: pfRef.current, busy, stake, setStake, adjustStake, error, setError, errorText, announce, history, fairVersion, run }
 }
 
 export function StakeField({ ns, round }) {
@@ -130,7 +150,7 @@ export function HistoryStrip({ ns, items }) {
 }
 
 export function FairnessPanel({ ns, round }) {
-    const { pf, busy, fairVersion } = round
+    const { pf, busy, fairVersion, mode } = round
     const [data, setData] = useState(null)
     const [seedInput, setSeedInput] = useState('')
     const [revealed, setRevealed] = useState(null)
@@ -142,7 +162,7 @@ export function FairnessPanel({ ns, round }) {
         setData(next)
         setSeedInput(next.clientSeed)
     }, [pf])
-    useEffect(() => { load() }, [load, fairVersion])
+    useEffect(() => { if (mode !== 'server') load() }, [load, fairVersion, mode])
 
     const applySeed = async (event) => {
         event.preventDefault()
@@ -156,6 +176,8 @@ export function FairnessPanel({ ns, round }) {
         setRevealed(await pf.rotateSeed())
         load()
     }
+
+    if (mode === 'server') return <p className="og-hint">{t(`${ns}.fairness.server`)}</p>
 
     return (
         <details className="og-fair">
@@ -221,6 +243,8 @@ function DiceGame() {
         run({
             validate: () => (target.ok ? '' : targetErr(target.code)),
             resolve: (r, stakeValue) => resolveDice({ r, stake: stakeValue, target: target.value, direction }),
+            server: (stakeValue) => gameApi.dice({ stake: stakeValue, target: target.value, direction }),
+            fromServer: (r, payoutCoins) => ({ roll: r.result.roll, win: r.result.win, payout: payoutCoins }),
             reveal: async (outcome) => {
                 setLast({ roll: outcome.roll, win: outcome.win })
                 await wait(prefersReducedMotion() ? 0 : 650)

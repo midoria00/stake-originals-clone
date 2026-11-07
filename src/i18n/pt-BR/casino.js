@@ -93,7 +93,10 @@ export default {
         maxWin: 'Ganho máximo',
         releasedAt: 'Lançamento',
         features: 'Características',
-        sourceSlotReport: 'Fonte dos dados: slot.report. O RTP informado é o da maior configuração disponível; cada cassino pode usar uma configuração menor.',
+        sourceSlotReport: 'O RTP informado é o da maior configuração disponível; cada cassino pode usar uma configuração menor.',
+        sourceLabel: 'Fonte dos dados:',
+        imageCredit: 'Imagem: {credit}',
+        noCover: 'Sem capa autorizada',
         volatilities: { low: 'Baixa', 'medium-low': 'Média-baixa', medium: 'Média', 'medium-high': 'Média-alta', high: 'Alta', 'very-high': 'Muito alta', extreme: 'Extrema' },
         platformNames: { desktop: 'Computador', mobile: 'Celular' },
         reasons: {

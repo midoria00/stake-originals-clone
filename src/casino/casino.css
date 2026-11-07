@@ -106,6 +106,7 @@
 }
 
 .catalog-card__art {
+    position: relative;
     display: grid;
     overflow: hidden;
     aspect-ratio: 4 / 5;
@@ -130,39 +131,72 @@
     transform: translateY(-3px);
 }
 
-.catalog-card__placeholder {
-    color: var(--text-muted);
-    font-family: var(--font-display);
-    font-size: 30px;
-    font-weight: 800;
+/* No authorized cover: a tinted panel with the initials, plainly a placeholder. */
+.catalog-art-fallback {
+    display: grid;
+    width: 100%;
+    height: 100%;
+    place-items: center;
+    background:
+        radial-gradient(110% 80% at 0% 0%, hsl(var(--art-hue) 72% 46% / 0.34), transparent 62%),
+        radial-gradient(110% 80% at 100% 100%, hsl(calc(var(--art-hue) + 36) 70% 42% / 0.24), transparent 64%),
+        repeating-linear-gradient(135deg, hsl(var(--art-hue) 40% 60% / 0.05) 0 2px, transparent 2px 12px),
+        var(--surface-1);
 }
 
+.catalog-art-fallback__initials {
+    color: hsl(var(--art-hue) 70% 84%);
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-shadow: 0 2px 14px rgb(0 0 0 / 0.35);
+}
+
+/* Always room for a two-line name plus the meta line, so every card (and its skeleton) has the
+   same height while short names keep the meta right below them. */
 .catalog-card__body {
     display: grid;
+    align-content: start;
     gap: 2px;
+    min-height: calc(2.6em + 2px + var(--font-size-sm) * 1.4);
     padding: 0 2px;
 }
 
+/* Up to two lines: long names stay legible instead of being cut after a few words. */
 .catalog-card__name {
+    display: -webkit-box;
     overflow: hidden;
     color: var(--text-primary);
     font-weight: 800;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
 }
 
 .catalog-card__meta {
+    overflow: hidden;
     color: var(--text-secondary);
     font-size: var(--font-size-sm);
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .catalog-card__badge {
     position: absolute;
     top: 10px;
     left: 10px;
+    max-width: calc(100% - 64px);
+    overflow: hidden;
     padding: 2px 8px;
     border-radius: var(--radius-full);
-    background: color-mix(in srgb, var(--bg-app) 80%, transparent);
+    background: color-mix(in srgb, var(--bg-app) 82%, transparent);
+    box-shadow: 0 1px 6px rgb(0 0 0 / 0.25);
+    text-overflow: ellipsis;
+    white-space: nowrap;
     color: var(--text-secondary);
     font-size: 11px;
     font-weight: 800;
@@ -179,8 +213,18 @@
     color: var(--success);
 }
 
-.catalog-skeleton {
-    aspect-ratio: 4 / 5;
+.catalog-card--skeleton .catalog-card__art {
+    border-color: transparent;
+}
+
+.catalog-card__bar {
+    display: inline-block;
+    width: 80%;
+    border-radius: var(--radius-sm, 6px);
+}
+
+.catalog-card__bar--short {
+    width: 55%;
 }
 
 .catalog-more {
@@ -247,6 +291,43 @@
     border-radius: 0;
 }
 
+/* Detail page of a game that cannot be opened here: its art (or placeholder) beside the reason. */
+.game-hero {
+    display: grid;
+    grid-template-columns: minmax(140px, 220px) minmax(0, 1fr);
+    gap: var(--space-5);
+    align-items: center;
+    padding: var(--space-4);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: linear-gradient(160deg, var(--surface-2), var(--surface-1));
+}
+
+.game-hero__art {
+    width: 100%;
+}
+
+.game-hero__info {
+    display: grid;
+    gap: var(--space-2);
+    justify-items: start;
+    color: var(--text-secondary);
+}
+
+.game-hero__info h2 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: var(--font-size-lg, 18px);
+}
+
+.game-hero__info p {
+    margin: 0;
+}
+
+.game-hero__info svg {
+    color: var(--warning, var(--text-muted));
+}
+
 .game-toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -288,6 +369,12 @@
 
     .game-stage {
         aspect-ratio: 3 / 4;
+    }
+
+    .game-hero {
+        grid-template-columns: minmax(110px, 38%) minmax(0, 1fr);
+        gap: var(--space-3);
+        padding: var(--space-3);
     }
 }
 

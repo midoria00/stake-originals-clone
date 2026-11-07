@@ -121,19 +121,17 @@ function Slip() {
     )
 }
 
-// status: 'open' | 'settled' | undefined (all, open first). Also used by the "Minhas apostas" page.
-export function BetList({ status, emptyText = t('sports.slip.noBets') }) {
-    const { bets } = useBetSlip()
-    const filtered = status ? bets.filter((bet) => (bet.status === 'pending') === (status === 'open')) : bets
-    if (!filtered.length) return <div className="sp-slip__empty"><p>{emptyText}</p></div>
-    // Open bets first; the stored order (newest first) is kept inside each group.
-    const ordered = [...filtered].sort((a, b) => (b.status === 'pending') - (a.status === 'pending'))
+// Bets in the local shape (visitors' stored bets, or server bets through fromServerBet).
+export function BetCards({ bets }) {
     return (
         <ul className="sp-bets">
-            {ordered.map((bet) => (
+            {bets.map((bet) => (
                 <li key={bet.id} className={`sp-bet sp-bet--${bet.status}`}>
                     <div className="sp-bet__head">
-                        <span>{bet.type === 'multiple' ? t('sports.slip.multipleCount', { count: bet.legs.length }) : t('sports.slip.single')}</span>
+                        <span>
+                            {bet.type === 'multiple' ? t('sports.slip.multipleCount', { count: bet.legs.length }) : t('sports.slip.single')}
+                            {bet.server && bet.simulated && <span className="sp-tag">{t('sports.simulated')}</span>}
+                        </span>
                         <span className={`sp-status sp-status--${bet.status}`}>{resultLabel(bet.status)}</span>
                     </div>
                     <ul className="sp-bet__legs">
@@ -142,7 +140,10 @@ export function BetList({ status, emptyText = t('sports.slip.noBets') }) {
                                 <span className={`sp-dot sp-dot--${leg.result}`} aria-label={resultLabel(leg.result)} title={resultLabel(leg.result)} />
                                 <span>
                                     <b>{leg.label}</b> @ {oddText(leg.odd)}
-                                    <small>{leg.marketLabel} · {leg.home} x {leg.away} · {kickoffDateTime(leg.kickoff)}</small>
+                                    <small>
+                                        {leg.marketLabel} · {leg.matchLabel ?? `${leg.home} x ${leg.away}`}
+                                        {leg.kickoff && ` · ${kickoffDateTime(leg.kickoff)}`}
+                                    </small>
                                 </span>
                             </li>
                         ))}
@@ -155,6 +156,15 @@ export function BetList({ status, emptyText = t('sports.slip.noBets') }) {
             ))}
         </ul>
     )
+}
+
+// status: 'open' | 'settled' | undefined (all, open first). Also used by the "Minhas apostas" page.
+export function BetList({ status, emptyText = t('sports.slip.noBets') }) {
+    const { bets } = useBetSlip()
+    const filtered = status ? bets.filter((bet) => (bet.status === 'pending') === (status === 'open')) : bets
+    if (!filtered.length) return <div className="sp-slip__empty"><p>{emptyText}</p></div>
+    // Open bets first; the stored order (newest first) is kept inside each group.
+    return <BetCards bets={[...filtered].sort((a, b) => (b.status === 'pending') - (a.status === 'pending'))} />
 }
 
 export default function BetSlip() {

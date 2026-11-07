@@ -27,7 +27,9 @@ const MAX_AGE_BY_PHASE = { live: 20, scheduled: 60, finished: 3600, cancelled: 3
 export function createSportsService({ env = process.env, fetchImpl = fetch, now = Date.now } = {}) {
     const provider = env.API_FOOTBALL_KEY
         ? createApiFootballProvider({ key: env.API_FOOTBALL_KEY, fetchImpl })
-        : createDemoProvider({ now })
+        // The same secret on every instance keeps simulated results consistent between the public
+        // sports API and bet settlement; locally (no secret) results follow the public ids as before.
+        : createDemoProvider({ now, secret: env.SPORTS_DEMO_SECRET || env.ACCOUNT_HASH_SECRET || null })
 
     const meta = () => ({
         mode: provider.mode,

@@ -47,7 +47,7 @@ function Sidebar({
         const session = autoBetSessionRef.current;
         try {
             const result = await onDropBall?.(() => session !== autoBetSessionRef.current);
-            if (result === 'insufficient-funds') {
+            if (result === 'insufficient-funds' || result === 'error') {
                 setIsAutoBetting(false);
             } else if (result === 'dropped' && autoBetsLeft !== null) {
                 setAutoBetsLeft(prev => prev - 1);
